@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2021",
+    "strict": true,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@backend/messaging": ["packages/messaging/src"],
+      "@backend/common": ["packages/common/src"],
+      "@backend/contracts": ["packages/contracts/src"]
+    }
+  }
+}
