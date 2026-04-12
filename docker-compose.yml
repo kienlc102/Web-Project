@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # 1. Database & Message Broker (Hạ tầng cốt lõi)
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: microservices_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./infrastructure/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # 2. IAM Service (Phần của Người 4)
+  iam-service:
+    build: 
+      context: ./services/iam-service
+    ports:
+      - "3001:3001"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=admin
+      - DB_PASS=password123
+    depends_on:
+      - postgres
+
+  # 3. API Gateway (Authenticator & Router)
+  api-gateway:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./infrastructure/api-gateway/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - iam-service
