@@ -21,39 +21,39 @@ const updateItemSchema = z.object({
   quantity: z.number().int().min(0),
 });
 
-router.post("/", (req, res, next) => {
+router.post("/", async (req, res, next) => {
   try {
     const payload = createCartSchema.parse(req.body);
-    const cart = cartService.createCart(payload);
+    const cart = await cartService.createCart(payload);
     return res.status(201).json({ data: cart });
   } catch (err) {
     return next(err);
   }
 });
 
-router.get("/:cartId", (req, res, next) => {
+router.get("/:cartId", async (req, res, next) => {
   try {
-    const cart = cartService.getCart(req.params.cartId);
+    const cart = await cartService.getCart(req.params.cartId);
     return res.json({ data: cart });
   } catch (err) {
     return next(err);
   }
 });
 
-router.post("/:cartId/items", (req, res, next) => {
+router.post("/:cartId/items", async (req, res, next) => {
   try {
     const payload = addItemSchema.parse(req.body);
-    const cart = cartService.addCartItem(req.params.cartId, payload);
+    const cart = await cartService.addCartItem(req.params.cartId, payload);
     return res.json({ data: cart });
   } catch (err) {
     return next(err);
   }
 });
 
-router.patch("/:cartId/items/:productId", (req, res, next) => {
+router.patch("/:cartId/items/:productId", async (req, res, next) => {
   try {
     const payload = updateItemSchema.parse(req.body);
-    const cart = cartService.updateCartItem(
+    const cart = await cartService.updateCartItem(
       req.params.cartId,
       req.params.productId,
       payload.quantity,

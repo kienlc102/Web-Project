@@ -22,75 +22,65 @@ function recalculateTotals(items) {
   return { subtotal, totalQuantity };
 }
 
-function createCart(input) {
+async function createCart(input) {
   return store.createCart(input);
 }
 
-function getCart(cartId) {
-  const cart = store.getCart(cartId);
+async function getCart(cartId) {
+  const cart = await store.getCart(cartId);
   if (!cart) {
     throw cartNotFound(cartId);
   }
   return cart;
 }
 
-function addCartItem(cartId, itemInput) {
-  const cart = getCart(cartId);
+async function addCartItem(cartId, itemInput) {
+  const cart = await getCart(cartId);
   assertActiveCart(cart);
 
-  const next = store.updateCart(cartId, (current) => {
-    const existingIdx = current.items.findIndex((item) => item.productId === itemInput.productId);
+  const existingIdx = cart.items.findIndex((item) => item.productId === itemInput.productId);
 
-    let nextItems;
-    if (existingIdx >= 0) {
-      nextItems = current.items.map((item, idx) =>
-        idx === existingIdx
-          ? {
-              ...item,
-              quantity: item.quantity + itemInput.quantity,
-              unitPrice: itemInput.unitPrice,
-              sellerId: itemInput.sellerId,
-              name: itemInput.name,
-            }
-          : item,
-      );
-    } else {
-      nextItems = [...current.items, itemInput];
-    }
+  let nextItems;
+  if (existingIdx >= 0) {
+    nextItems = cart.items.map((item, idx) =>
+      idx === existingIdx
+        ? {
+            ...item,
+            quantity: item.quantity + itemInput.quantity,
+            unitPrice: itemInput.unitPrice,
+            sellerId: itemInput.sellerId,
+            name: itemInput.name,
+          }
+        : item,
+    );
+  } else {
+    nextItems = [...cart.items, itemInput];
+  }
 
-    return {
-      ...current,
-      items: nextItems,
-      totals: recalculateTotals(nextItems),
-    };
-  });
+  const totals = recalculateTotals(nextItems);
+  const next = await store.replaceCartItems(cartId, nextItems, totals);
 
   return next;
 }
 
-function updateCartItem(cartId, productId, quantity) {
-  const cart = getCart(cartId);
+async function updateCartItem(cartId, productId, quantity) {
+  const cart = await getCart(cartId);
   assertActiveCart(cart);
 
-  const next = store.updateCart(cartId, (current) => {
-    const existing = current.items.some((item) => item.productId === productId);
-    if (!existing) {
-      const err = new Error(`Product not found in cart: ${productId}`);
-      err.status = 404;
-      err.code = "CART_ITEM_NOT_FOUND";
-      throw err;
-    }
+  const existing = cart.items.some((item) => item.productId === productId);
+  if (!existing) {
+    const err = new Error(`Product not found in cart: ${productId}`);
+    err.status = 404;
+    err.code = "CART_ITEM_NOT_FOUND";
+    throw err;
+  }
 
-    const nextItems = quantity === 0
-      ? current.items.filter((item) => item.productId !== productId)
-      : current.items.map((item) => (item.productId === productId ? { ...item, quantity } : item));
+  const nextItems = quantity === 0
+    ? cart.items.filter((item) => item.productId !== productId)
+    : cart.items.map((item) => (item.productId === productId ? { ...item, quantity } : item));
 
-    return {
-      ...current,
-      items: nextItems,
-      totals: recalculateTotals(nextItems),
-    };
-  });
+  const totals = recalculateTotals(nextItems);
+  const next = await store.replaceCartItems(cartId, nextItems, totals);
 
   return next;
 }

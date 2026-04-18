@@ -24,26 +24,26 @@ const cancelOrderSchema = z.object({
   reason: z.string().min(1).optional(),
 });
 
-router.post("/", (req, res, next) => {
+router.post("/", async (req, res, next) => {
   try {
     const payload = createOrderSchema.parse(req.body);
-    const order = orderService.createOrderFromCart(payload);
+    const order = await orderService.createOrderFromCart(payload);
     return res.status(201).json({ data: order });
   } catch (err) {
     return next(err);
   }
 });
 
-router.get("/:orderId", (req, res, next) => {
+router.get("/:orderId", async (req, res, next) => {
   try {
-    const order = orderService.getOrder(req.params.orderId);
+    const order = await orderService.getOrder(req.params.orderId);
     return res.json({ data: order });
   } catch (err) {
     return next(err);
   }
 });
 
-router.get("/", (req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
     const userId = req.query.userId;
 
@@ -54,17 +54,17 @@ router.get("/", (req, res, next) => {
       throw err;
     }
 
-    const orders = orderService.listOrdersByUser(userId);
+    const orders = await orderService.listOrdersByUser(userId);
     return res.json({ data: orders });
   } catch (err) {
     return next(err);
   }
 });
 
-router.post("/:orderId/cancel", (req, res, next) => {
+router.post("/:orderId/cancel", async (req, res, next) => {
   try {
     const payload = cancelOrderSchema.parse(req.body || {});
-    const order = orderService.cancelOrder(req.params.orderId, payload.reason);
+    const order = await orderService.cancelOrder(req.params.orderId, payload.reason);
     return res.json({ data: order });
   } catch (err) {
     return next(err);

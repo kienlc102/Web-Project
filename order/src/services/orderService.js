@@ -10,175 +10,194 @@ function orderNotFound(orderId) {
   return err;
 }
 
-function createOrderFromCart({ cartId, userId, shippingAddress, paymentMethod }) {
-  const cart = store.getCart(cartId);
+async function createOrderFromCart({ cartId, userId, shippingAddress, paymentMethod }) {
+  return store.withTransaction(async (client) => {
+    const cart = await store.getCart(cartId, client);
 
-  if (!cart) {
-    const err = new Error(`Cart not found: ${cartId}`);
-    err.status = 404;
-    err.code = "CART_NOT_FOUND";
-    throw err;
-  }
+    if (!cart) {
+      const err = new Error(`Cart not found: ${cartId}`);
+      err.status = 404;
+      err.code = "CART_NOT_FOUND";
+      throw err;
+    }
 
-  if (cart.status !== "ACTIVE") {
-    const err = new Error("Cart is already checked out");
-    err.status = 409;
-    err.code = "INVALID_CART_STATUS";
-    throw err;
-  }
+    if (cart.status !== "ACTIVE") {
+      const err = new Error("Cart is already checked out");
+      err.status = 409;
+      err.code = "INVALID_CART_STATUS";
+      throw err;
+    }
 
-  if (!cart.items.length) {
-    const err = new Error("Cannot place order from empty cart");
-    err.status = 400;
-    err.code = "EMPTY_CART";
-    throw err;
-  }
+    if (!cart.items.length) {
+      const err = new Error("Cannot place order from empty cart");
+      err.status = 400;
+      err.code = "EMPTY_CART";
+      throw err;
+    }
 
-  const totals = recalculateTotals(cart.items);
-  const createdAt = new Date().toISOString();
+    const totals = recalculateTotals(cart.items);
+    const createdAt = new Date().toISOString();
 
-  const order = {
-    id: randomUUID(),
-    userId,
-    cartId,
-    status: ORDER_STATUS.PLACED,
-    shippingAddress,
-    paymentMethod,
-    currency: cart.currency,
-    items: cart.items.map((item) => ({
-      productId: item.productId,
-      sellerId: item.sellerId,
-      name: item.name,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      lineTotal: item.quantity * item.unitPrice,
-    })),
-    totals,
-    createdAt,
-    updatedAt: createdAt,
-    history: [
-      {
-        from: null,
-        to: ORDER_STATUS.PLACED,
-        at: createdAt,
-        by: "SYSTEM",
-        reason: "Order created from cart checkout",
-      },
-    ],
-  };
-
-  store.saveOrder(order);
-
-  store.updateCart(cartId, (current) => ({
-    ...current,
-    status: "CHECKED_OUT",
-    checkedOutAt: createdAt,
-  }));
-
-  store.pushOutboxEvent({
-    aggregateId: order.id,
-    eventType: "OrderPlaced",
-    payload: {
-      orderId: order.id,
-      userId: order.userId,
-      items: order.items,
-      totals: order.totals,
-      shippingAddress: order.shippingAddress,
-      paymentMethod: order.paymentMethod,
+    const order = {
+      id: randomUUID(),
+      userId,
+      cartId,
+      status: ORDER_STATUS.PLACED,
+      shippingAddress,
+      paymentMethod,
+      currency: cart.currency,
+      items: cart.items.map((item) => ({
+        productId: item.productId,
+        sellerId: item.sellerId,
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal: item.quantity * item.unitPrice,
+      })),
+      totals,
       createdAt,
-    },
-  });
+      updatedAt: createdAt,
+      history: [
+        {
+          from: null,
+          to: ORDER_STATUS.PLACED,
+          at: createdAt,
+          by: "SYSTEM",
+          reason: "Order created from cart checkout",
+        },
+      ],
+    };
 
-  return order;
+    await store.saveOrder(order, client);
+
+    await store.markCartCheckedOut(cartId, createdAt, client);
+
+    await store.pushOutboxEvent(
+      {
+        aggregateId: order.id,
+        eventType: "OrderPlaced",
+        payload: {
+          orderId: order.id,
+          userId: order.userId,
+          items: order.items,
+          totals: order.totals,
+          shippingAddress: order.shippingAddress,
+          paymentMethod: order.paymentMethod,
+          createdAt,
+        },
+      },
+      client,
+    );
+
+    return order;
+  });
 }
 
-function getOrder(orderId) {
-  const order = store.getOrder(orderId);
+async function getOrder(orderId, client) {
+  const order = await store.getOrder(orderId, client);
   if (!order) {
     throw orderNotFound(orderId);
   }
   return order;
 }
 
-function listOrdersByUser(userId) {
+async function listOrdersByUser(userId) {
   return store.listOrdersByUser(userId);
 }
 
-function cancelOrder(orderId, reason = "Cancelled by user") {
-  const order = getOrder(orderId);
+async function cancelOrder(orderId, reason = "Cancelled by user") {
+  return store.withTransaction(async (client) => {
+    const order = await getOrder(orderId, client);
 
-  assertCanTransition(order.status, ORDER_STATUS.CANCELLED);
+    assertCanTransition(order.status, ORDER_STATUS.CANCELLED);
 
-  const cancelledAt = new Date().toISOString();
+    const cancelledAt = new Date().toISOString();
 
-  const next = store.updateOrder(orderId, (current) => ({
-    ...current,
-    status: ORDER_STATUS.CANCELLED,
-    cancelledAt,
-    history: [
-      ...current.history,
+    const next = await store.updateOrder(
+      orderId,
+      (current) => ({
+        ...current,
+        status: ORDER_STATUS.CANCELLED,
+        cancelledAt,
+        history: [
+          ...current.history,
+          {
+            from: current.status,
+            to: ORDER_STATUS.CANCELLED,
+            at: cancelledAt,
+            by: "ORDER_SERVICE",
+            reason,
+          },
+        ],
+      }),
+      client,
+    );
+
+    await store.pushOutboxEvent(
       {
-        from: current.status,
-        to: ORDER_STATUS.CANCELLED,
-        at: cancelledAt,
-        by: "ORDER_SERVICE",
-        reason,
+        aggregateId: next.id,
+        eventType: "OrderCancelled",
+        payload: {
+          orderId: next.id,
+          userId: next.userId,
+          reason,
+          cancelledAt,
+        },
       },
-    ],
-  }));
+      client,
+    );
 
-  store.pushOutboxEvent({
-    aggregateId: next.id,
-    eventType: "OrderCancelled",
-    payload: {
-      orderId: next.id,
-      userId: next.userId,
-      reason,
-      cancelledAt,
-    },
+    return next;
   });
-
-  return next;
 }
 
-function transitionOrderStatus(orderId, toStatus, metadata = {}) {
-  const order = getOrder(orderId);
-  assertCanTransition(order.status, toStatus);
+async function transitionOrderStatus(orderId, toStatus, metadata = {}) {
+  return store.withTransaction(async (client) => {
+    const order = await getOrder(orderId, client);
+    assertCanTransition(order.status, toStatus);
 
-  const changedAt = new Date().toISOString();
+    const changedAt = new Date().toISOString();
 
-  const next = store.updateOrder(orderId, (current) => ({
-    ...current,
-    status: toStatus,
-    history: [
-      ...current.history,
+    const next = await store.updateOrder(
+      orderId,
+      (current) => ({
+        ...current,
+        status: toStatus,
+        history: [
+          ...current.history,
+          {
+            from: current.status,
+            to: toStatus,
+            at: changedAt,
+            by: metadata.by || "INTEGRATION",
+            reason: metadata.reason || "Status updated",
+            sourceEventType: metadata.sourceEventType || null,
+          },
+        ],
+      }),
+      client,
+    );
+
+    await store.pushOutboxEvent(
       {
-        from: current.status,
-        to: toStatus,
-        at: changedAt,
-        by: metadata.by || "INTEGRATION",
-        reason: metadata.reason || "Status updated",
-        sourceEventType: metadata.sourceEventType || null,
+        aggregateId: next.id,
+        eventType: "OrderStatusUpdated",
+        payload: {
+          orderId: next.id,
+          fromStatus: order.status,
+          toStatus,
+          changedAt,
+          sourceEventType: metadata.sourceEventType || null,
+        },
       },
-    ],
-  }));
+      client,
+    );
 
-  store.pushOutboxEvent({
-    aggregateId: next.id,
-    eventType: "OrderStatusUpdated",
-    payload: {
-      orderId: next.id,
-      fromStatus: order.status,
-      toStatus,
-      changedAt,
-      sourceEventType: metadata.sourceEventType || null,
-    },
+    return next;
   });
-
-  return next;
 }
 
-function applyFulfillmentEvent(event) {
+async function applyFulfillmentEvent(event) {
   if (!event || typeof event !== "object") {
     const err = new Error("Invalid fulfillment event payload");
     err.status = 400;
@@ -237,12 +256,12 @@ function applyFulfillmentEvent(event) {
   throw err;
 }
 
-function listPendingOutbox() {
+async function listPendingOutbox() {
   return store.listOutboxPending();
 }
 
-function markOutboxPublished(outboxId) {
-  const outbox = store.markOutboxPublished(outboxId);
+async function markOutboxPublished(outboxId) {
+  const outbox = await store.markOutboxPublished(outboxId);
   if (!outbox) {
     const err = new Error(`Outbox event not found: ${outboxId}`);
     err.status = 404;

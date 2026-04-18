@@ -16,29 +16,29 @@ const markOutboxSchema = z.object({
   outboxId: z.string().min(1),
 });
 
-router.post("/events/fulfillment", (req, res, next) => {
+router.post("/events/fulfillment", async (req, res, next) => {
   try {
     const payload = fulfillmentEventSchema.parse(req.body);
-    const order = orderService.applyFulfillmentEvent(payload);
+    const order = await orderService.applyFulfillmentEvent(payload);
     return res.json({ data: order });
   } catch (err) {
     return next(err);
   }
 });
 
-router.get("/outbox/pending", (req, res, next) => {
+router.get("/outbox/pending", async (req, res, next) => {
   try {
-    const events = orderService.listPendingOutbox();
+    const events = await orderService.listPendingOutbox();
     return res.json({ data: events });
   } catch (err) {
     return next(err);
   }
 });
 
-router.post("/outbox/mark-published", (req, res, next) => {
+router.post("/outbox/mark-published", async (req, res, next) => {
   try {
     const payload = markOutboxSchema.parse(req.body);
-    const event = orderService.markOutboxPublished(payload.outboxId);
+    const event = await orderService.markOutboxPublished(payload.outboxId);
     return res.json({ data: event });
   } catch (err) {
     return next(err);

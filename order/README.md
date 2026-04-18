@@ -10,20 +10,47 @@ Node.js service for cart and order management in a microservice e-commerce syste
 - Support order cancellation with transition rules.
 - Publish order domain events through outbox.
 - Consume fulfillment events to update order status.
+- Persist carts, orders, and outbox data in PostgreSQL (`ordering` schema).
 
 ## Quick start
 
-1. Install dependencies:
+1. Start PostgreSQL (from `order/`):
+
+  docker compose up -d
+
+2. Install dependencies:
 
    npm install
 
-2. Start service:
+3. Start service:
 
    npm run start
 
-3. Health check:
+4. Health check:
 
    GET http://localhost:8083/health
+
+## Configuration
+
+Environment variables:
+
+- `PORT` (default: `8083`)
+- `DB_HOST` (default: `localhost`)
+- `DB_PORT` (default: `5432`)
+- `DB_USER` (default: `admin`)
+- `DB_PASS` (default: `password123`)
+- `DB_NAME` (default: `microservices_db`)
+- `DB_POOL_MAX` (default: `10`)
+
+Copy `.env.example` to `.env` and adjust values if needed.
+
+On startup, the service initializes these tables (if missing):
+
+- `ordering.carts`
+- `ordering.cart_items`
+- `ordering.orders`
+- `ordering.order_items`
+- `ordering.outbox_events`
 
 ## Order state machine
 
