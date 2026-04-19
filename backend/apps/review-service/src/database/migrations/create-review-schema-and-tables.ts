@@ -6,29 +6,30 @@ export class CreateReviewSchemaAndTables1712900001000
   name = 'CreateReviewSchemaAndTables1712900001000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`CREATE SCHEMA IF NOT EXISTS review`);
+    await queryRunner.query(`CREATE DATABASE IF NOT EXISTS review`);
+    await queryRunner.query(`USE review`);
 
     await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS review.review_eligibilities (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        "fulfillmentId" varchar NOT NULL,
-        "orderId" varchar NOT NULL,
-        "customerId" varchar NOT NULL,
-        "sellerId" varchar NOT NULL,
-        "isEligible" boolean NOT NULL DEFAULT true,
-        "createdAt" timestamp NOT NULL DEFAULT now(),
-        "updatedAt" timestamp NOT NULL DEFAULT now()
+      CREATE TABLE IF NOT EXISTS review_eligibilities (
+        id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+        fulfillmentId varchar(255) NOT NULL,
+        orderId varchar(255) NOT NULL,
+        customerId varchar(255) NOT NULL,
+        sellerId varchar(255) NOT NULL,
+        isEligible tinyint(1) NOT NULL DEFAULT 1,
+        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `);
 
     await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS review.processed_messages (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        "consumerName" varchar NOT NULL,
-        "messageId" varchar NOT NULL,
-        "processedAt" timestamp NOT NULL DEFAULT now(),
-        CONSTRAINT "UQ_review_processed_messages_consumer_message"
-          UNIQUE ("consumerName", "messageId")
+      CREATE TABLE IF NOT EXISTS processed_messages (
+        id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+        consumerName varchar(255) NOT NULL,
+        messageId varchar(255) NOT NULL,
+        processedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT UQ_review_processed_messages_consumer_message
+          UNIQUE (consumerName, messageId)
       )
     `);
   }
@@ -36,6 +37,6 @@ export class CreateReviewSchemaAndTables1712900001000
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TABLE IF EXISTS review.processed_messages`);
     await queryRunner.query(`DROP TABLE IF EXISTS review.review_eligibilities`);
-    await queryRunner.query(`DROP SCHEMA IF EXISTS review CASCADE`);
+    await queryRunner.query(`DROP DATABASE IF EXISTS review`);
   }
 }

@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-@Entity({ name: 'review_eligibilities', schema: 'review' })
+@Entity({ name: 'review_eligibilities' })
 export class ReviewEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

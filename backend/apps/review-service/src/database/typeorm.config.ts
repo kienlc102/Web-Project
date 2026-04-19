@@ -6,13 +6,12 @@ import { ProcessedMessageEntity } from '../modules/inbox/processed-message.entit
 const isTsNode = __filename.endsWith('.ts');
 
 export default new DataSource({
-  type: 'postgres',
+  type: 'mysql',
   host: process.env.DB_HOST ?? 'localhost',
-  port: Number(process.env.DB_PORT ?? 5432),
-  username: process.env.DB_USER ?? 'postgres',
-  password: process.env.DB_PASSWORD ?? 'postgres',
-  database: process.env.DB_NAME ?? 'ecommerce',
-  schema: 'review',
+  port: Number(process.env.DB_PORT ?? 3306),
+  username: process.env.DB_USER ?? 'root',
+  password: process.env.DB_PASSWORD ?? 'root',
+  database: process.env.DB_NAME ?? 'review',
   entities: [ReviewEntity, ProcessedMessageEntity],
   migrations: isTsNode
     ? ['apps/review-service/src/database/migrations/*.ts']

@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-@Entity({ name: 'outbox', schema: 'fulfillment' })
+@Entity({ name: 'outbox' })
 export class OutboxEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -20,7 +20,7 @@ export class OutboxEntity {
   @Column()
   aggregateId!: string;
 
-  @Column({ type: 'jsonb' })
+  @Column({ type: 'json' })
   payload: unknown;
 
   @Column({ default: 'PENDING' })

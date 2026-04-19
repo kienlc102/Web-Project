@@ -6,7 +6,7 @@ import {
   Unique,
 } from 'typeorm';
 
-@Entity({ name: 'processed_messages', schema: 'fulfillment' })
+@Entity({ name: 'processed_messages' })
 @Unique(['consumerName', 'messageId'])
 export class ProcessedMessageEntity {
   @PrimaryGeneratedColumn('uuid')
