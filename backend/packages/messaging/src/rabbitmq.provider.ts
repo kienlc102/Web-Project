@@ -7,7 +7,7 @@ export const RABBITMQ_CHANNEL = Symbol('RABBITMQ_CHANNEL');
 export const rabbitConnectionProvider: Provider = {
   provide: RABBITMQ_CONNECTION,
   useFactory: async () => {
-    const url = process.env.RABBITMQ_URL ?? 'amqp://guest:guest@localhost:5672';
+    const url = process.env.RABBITMQ_URL ?? 'amqp://admin:admin123@localhost:5672';
     return amqp.connect(url);
   },
 };
