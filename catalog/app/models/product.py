@@ -18,5 +18,7 @@ class Product(Base):
     totalComments = Column(Integer, nullable=False, default=0)
     StarCount = Column(Integer, nullable=False, default=0)
     totalRates = Column(Integer, nullable=False, default=0)
+    catalog_id = Column(Integer, ForeignKey("catalog.id"), nullable=False)
 
     shop = relationship("User", back_populates="products")
+    catalog = relationship("Catalog")

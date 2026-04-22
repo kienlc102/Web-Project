@@ -8,6 +8,9 @@ def get_product(db: Session, product_id: int):
 def get_products(db: Session, skip: int = 0, limit: int = 100):
     return db.query(Product).offset(skip).limit(limit).all()
 
+def get_products_by_catalog(db: Session, catalog_id: int, skip: int = 0, limit: int = 100):
+    return db.query(Product).filter(Product.catalog_id == catalog_id).offset(skip).limit(limit).all()
+
 def create_product(db: Session, product: ProductCreate):
     db_product = Product(**product.model_dump())
     db.add(db_product)

@@ -199,32 +199,20 @@ const ProductDetail = () => {
               : (
                 <div className="spec-table">
                   {product.detailDesc && Object.entries(product.detailDesc).map(([key, value], idx) => {
-                    const dic = { 
-                      cpu: "Vi xử lý (CPU)", 
-                      gpu: "Card đồ hoạ (GPU)", 
-                      ram: "Dung lượng RAM", 
-                      memory: "Bộ nhớ trong", 
-                      os: "Hệ điều hành", 
-                      screen: "Màn hình", 
-                      factory: "Hãng sản xuất",
-                      brand: "Thương hiệu", 
-                      origin: "Xuất xứ", 
-                      weight: "Trọng lượng", 
-                      warranty: "Bảo hành", 
-                      color: "Màu sắc", 
-                      size: "Kích thước", 
-                      material: "Chất liệu", 
-                      model: "Dòng sản phẩm", 
-                      description: "Mô tả thêm" 
-                    };
-                    const translatedKey = dic[key.toLowerCase()] || key.replace(/([A-Z])/g, ' $1').trim();
-                    const displayValue = value !== null && typeof value === 'object' 
-                      ? (Array.isArray(value) ? value.join(', ') : JSON.stringify(value)) 
-                      : String(value);
+                    let renderValue;
+                    if (value !== null && typeof value === 'object') {
+                      if (Array.isArray(value)) {
+                        renderValue = value.map((item, i) => <div key={i}>{item}</div>);
+                      } else {
+                        renderValue = JSON.stringify(value);
+                      }
+                    } else {
+                      renderValue = String(value).split('\\n').map((line, i) => <div key={i}>{line}</div>);
+                    }
                     return (
                       <div className="spec-row" key={idx}>
-                        <div className="spec-name">{translatedKey}</div>
-                        <div className="spec-value">{displayValue}</div>
+                        <div className="spec-name">{key}</div>
+                        <div className="spec-value">{renderValue}</div>
                       </div>
                     )
                   })}

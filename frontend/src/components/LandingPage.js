@@ -1,4 +1,5 @@
 import React from 'react';
+import CatalogList from './catalog/CatalogList';
 
 // Dữ liệu mẫu cho sản phẩm
 const featuredProducts = [
@@ -121,6 +122,8 @@ const LandingPage = () => {
             </div>
           </div>
         </section>
+
+        <CatalogList />
 
         {/* Featured Products */}
         <section id="products" className="products-section">

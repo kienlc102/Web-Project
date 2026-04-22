@@ -14,6 +14,7 @@ class ProductBase(BaseModel):
     totalComments: int = 0
     StarCount: int = 0
     totalRates: int = 0
+    catalog_id: int
 
 class ProductCreate(ProductBase):
     pass
@@ -31,6 +32,7 @@ class ProductUpdate(BaseModel):
     totalComments: Optional[int] = None
     StarCount: Optional[int] = None
     totalRates: Optional[int] = None
+    catalog_id: Optional[int] = None
 
 class ProductResponse(ProductBase):
     id: int

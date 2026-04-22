@@ -39,7 +39,13 @@ CREATE TABLE `products` (
   `ranking` int(11) NOT NULL,
   `totalComments` int(11) NOT NULL,
   `StarCount` int(11) NOT NULL,
-  `totalRates` int(11) NOT NULL
+  `totalRates` int(11) NOT NULL,
+  `catalog_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `catalog` (
+  `id` int(11) NOT NULL,
+  `product_type` varchar(255) NOT NULL,
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE `comments` (
@@ -108,6 +114,9 @@ CREATE TABLE `ratings` (
 -- THIẾT LẬP KHÓA CHÍNH (PRIMARY KEYS) & CHỈ MỤC (INDEXES)
 -- --------------------------------------------------------
 
+ALTER TABLE `catalog`
+  ADD PRIMARY KEY (`id`);
+
 ALTER TABLE `comments`
   ADD PRIMARY KEY (`id`),
   ADD KEY `comments_ibfk_1` (`userId`),
@@ -143,7 +152,8 @@ ALTER TABLE `order_seller`
 
 ALTER TABLE `products`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `product_ibfk` (`shopId`);
+  ADD KEY `product_ibfk` (`shopId`),
+  ADD KEY `product_ibfk_1` (`catalog_id`);
 
 ALTER TABLE `ratings`
   ADD PRIMARY KEY (`id`),
@@ -162,6 +172,7 @@ ALTER TABLE `users`
 -- THIẾT LẬP TỰ ĐỘNG TĂNG (AUTO_INCREMENT)
 -- --------------------------------------------------------
 
+ALTER TABLE `catalog` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 ALTER TABLE `comments` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 ALTER TABLE `messages` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 ALTER TABLE `notifications` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
@@ -177,6 +188,7 @@ ALTER TABLE `users` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 -- --------------------------------------------------------
 -- THIẾT LẬP KHÓA NGOẠI (FOREIGN KEYS)
 -- --------------------------------------------------------
+
 
 ALTER TABLE `comments`
   ADD CONSTRAINT `comments_ibfk_1` FOREIGN KEY (`userId`) REFERENCES `users` (`id`),
@@ -205,7 +217,8 @@ ALTER TABLE `order_seller`
   ADD CONSTRAINT `order_seller_ibfk_3` FOREIGN KEY (`buyer`) REFERENCES `users` (`id`);
 
 ALTER TABLE `products`
-  ADD CONSTRAINT `product_ibfk` FOREIGN KEY (`shopId`) REFERENCES `users` (`id`);
+  ADD CONSTRAINT `product_ibfk` FOREIGN KEY (`shopId`) REFERENCES `users` (`id`),
+  ADD CONSTRAINT `product_ibfk_1` FOREIGN KEY (`catalog_id`) REFERENCES `catalog` (`id`);
 
 ALTER TABLE `ratings`
   ADD CONSTRAINT `ratings_ibfk_1` FOREIGN KEY (`userId`) REFERENCES `users` (`id`),
@@ -215,3 +228,13 @@ ALTER TABLE `users`
   ADD CONSTRAINT `users_ibfk_1` FOREIGN KEY (`roleId`) REFERENCES `roles` (`id`);
 
 COMMIT;
+
+INSERT INTO `catalog` (`id`, `product_type`) VALUES 
+('1', 'Thiết bị Điện tử & Công nghệ'),
+('2', 'Thời trang & Phụ kiện'),
+('3', 'Nhà cửa & Đời sống'),
+('4', 'Sức khỏe & Sắc đẹp'),
+('5', 'Mẹ & Bé'),
+('6', 'Thể thao & Dã ngoại'),
+('7', 'Sách, VPP & Quà tặng'),
+('8', 'Bách hóa Online');
