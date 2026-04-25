@@ -105,7 +105,11 @@ app.post('/login', async (req, res) => {
 
         // Tạo thẻ thông hành (JWT Token) có hạn 1 giờ
         const token = jwt.sign(
-            { userId: user.id, username: user.username }, 
+            { 
+                userId: user.id, 
+                username: user.username,
+                role: user.role 
+            }, 
             JWT_SECRET, 
             { expiresIn: '1h' }
         );
@@ -139,6 +143,18 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
+const authorizeRole = (requiredRole) => {
+    return (req, res, next) => {
+        // req.user lấy từ middleware authenticateToken chạy trước đó
+        if (!req.user || req.user.role !== requiredRole) {
+            return res.status(403).json({ 
+                error: `Từ chối truy cập: Tính năng này yêu cầu quyền ${requiredRole}` 
+            });
+        }
+        next(); // Nếu đúng role thì cho đi tiếp
+    };
+};
+
 // -----------------------------------------
 // 3. API Lấy thông tin cá nhân (CẦN TOKEN)
 // -----------------------------------------
@@ -163,6 +179,16 @@ app.get('/me', authenticateToken, async (req, res) => {
 const amqp = require('amqplib');
 
 // -----------------------------------------
+// 4. API Dành riêng cho Admin (CẦN TOKEN + QUYỀN ADMIN)
+// -----------------------------------------
+app.get('/admin/dashboard', authenticateToken, authorizeRole('ADMIN'), async (req, res) => {
+    res.status(200).json({ 
+        message: 'Xin chào sếp! Đây là khu vực quản trị tối cao.',
+        adminInfo: req.user
+    });
+});
+
+// -----------------------------------------
 // Background Worker: Gửi sự kiện từ Outbox lên RabbitMQ
 // -----------------------------------------
 async function startOutboxProcessor() {
@@ -179,16 +205,20 @@ async function startOutboxProcessor() {
 
         // Cứ 5 giây quét bảng outbox 1 lần
         setInterval(async () => {
-            const [events] = await pool.query('SELECT * FROM outbox_events ORDER BY created_at ASC LIMIT 10');
-            
-            for (const event of events) {
-                // Bắn sự kiện lên RabbitMQ
-                const message = JSON.stringify({ id: event.id, type: event.event_type, payload: event.payload });
-                channel.publish(exchangeName, '', Buffer.from(message));
+            try { // <--- THÊM DÒNG NÀY
+                const [events] = await pool.query('SELECT * FROM outbox_events ORDER BY created_at ASC LIMIT 10');
                 
-                // Gửi thành công thì xóa khỏi Outbox
-                await pool.query('DELETE FROM outbox_events WHERE id = ?', [event.id]);
-                console.log(`📤 Đã gửi sự kiện: ${event.event_type}`);
+                for (const event of events) {
+                    // Bắn sự kiện lên RabbitMQ
+                    const message = JSON.stringify({ id: event.id, type: event.event_type, payload: event.payload });
+                    channel.publish(exchangeName, '', Buffer.from(message));
+                    
+                    // Gửi thành công thì xóa khỏi Outbox
+                    await pool.query('DELETE FROM outbox_events WHERE id = ?', [event.id]);
+                    console.log(`📤 Đã gửi sự kiện: ${event.event_type}`);
+                }
+            } catch (err) { // <--- THÊM KHỐI NÀY
+                console.error('⚠️ Lỗi khi quét Outbox (có thể DB đang khởi động):', err.message);
             }
         }, 5000);
 

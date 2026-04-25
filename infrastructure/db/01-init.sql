@@ -17,7 +17,8 @@ USE iam;
 CREATE TABLE IF NOT EXISTS users (
     id CHAR(36) PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL
+    password_hash TEXT NOT NULL,
+    role VARCHAR(20) DEFAULT 'USER'
 );
 
 CREATE TABLE IF NOT EXISTS roles (
