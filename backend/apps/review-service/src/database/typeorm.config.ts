@@ -1,7 +1,9 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
-import { ReviewEntity } from '../modules/reviews/entities/review.entity';
+import { ReviewEligibilityEntity } from '../modules/reviews/entities/review.entity';
+import { ReviewRecordEntity } from '../modules/reviews/entities/review-record.entity';
 import { ProcessedMessageEntity } from '../modules/inbox/processed-message.entity';
+import { OutboxEntity } from '../modules/outbox/outbox.entity';
 
 const isTsNode = __filename.endsWith('.ts');
 
@@ -12,7 +14,12 @@ export default new DataSource({
   username: process.env.DB_USER ?? 'root',
   password: process.env.DB_PASSWORD ?? 'root',
   database: process.env.DB_NAME ?? 'review',
-  entities: [ReviewEntity, ProcessedMessageEntity],
+  entities: [
+    ReviewEligibilityEntity,
+    ReviewRecordEntity,
+    ProcessedMessageEntity,
+    OutboxEntity,
+  ],
   migrations: isTsNode
     ? ['apps/review-service/src/database/migrations/*.ts']
     : ['dist/apps/review-service/src/database/migrations/*.js'],
