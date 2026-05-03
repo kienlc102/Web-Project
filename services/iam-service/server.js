@@ -35,6 +35,7 @@ const { v4: uuidv4 } = require('uuid');
 
 // Secret key để ký JWT (Trong thực tế sẽ để ở file .env)
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-microservices';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret';
 
 // -----------------------------------------
 // 1. API Đăng ký (Nâng cấp Outbox Pattern)
@@ -103,18 +104,82 @@ app.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'Sai tài khoản hoặc mật khẩu' });
         }
 
-        // Tạo thẻ thông hành (JWT Token) có hạn 1 giờ
-        const token = jwt.sign(
+        // 1. Tạo Access Token (Ngắn hạn - 15 phút) dùng để đi qua các trạm gác API
+        const accessToken = jwt.sign(
             { 
                 userId: user.id, 
                 username: user.username,
                 role: user.role 
             }, 
             JWT_SECRET, 
-            { expiresIn: '1h' }
+            { expiresIn: '15m' }
         );
 
-        res.status(200).json({ message: 'Đăng nhập thành công!', token });
+        // 2. Tạo Refresh Token (Dài hạn - 7 ngày) dùng để xin cấp lại Access Token khi hết hạn
+        const refreshToken = jwt.sign(
+            { userId: user.id }, 
+            JWT_REFRESH_SECRET, 
+            { expiresIn: '7d' }
+        );
+
+        // 3. Lưu Refresh Token vào Database để quản lý phiên đăng nhập
+        await pool.query(
+            'INSERT INTO refresh_tokens (token, user_id) VALUES (?, ?)', 
+            [refreshToken, user.id]
+        );
+
+        res.status(200).json({ 
+            message: 'Đăng nhập thành công!', 
+            accessToken,
+            refreshToken
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// -----------------------------------------
+// API Làm mới Token (Refresh Token)
+// -----------------------------------------
+app.post('/refresh', async (req, res) => {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(401).json({ error: 'Không tìm thấy Refresh Token' });
+
+    try {
+        // Kiểm tra token có nằm trong Database không (đề phòng đã bị thu hồi)
+        const [rows] = await pool.query('SELECT * FROM refresh_tokens WHERE token = ?', [refreshToken]);
+        if (rows.length === 0) return res.status(403).json({ error: 'Refresh Token không hợp lệ hoặc đã bị thu hồi' });
+
+        // Xác minh Refresh Token
+        jwt.verify(refreshToken, JWT_REFRESH_SECRET, async (err, payload) => {
+            if (err) return res.status(403).json({ error: 'Refresh Token đã hết hạn' });
+
+            // Lấy lại thông tin user mới nhất từ DB để cấp Access Token mới
+            const [users] = await pool.query('SELECT username, role FROM users WHERE id = ?', [payload.userId]);
+            if (users.length === 0) return res.status(403).json({ error: 'User không tồn tại' });
+
+            const newAccessToken = jwt.sign(
+                { userId: payload.userId, username: users[0].username, role: users[0].role }, 
+                JWT_SECRET, 
+                { expiresIn: '15m' }
+            );
+
+            res.status(200).json({ accessToken: newAccessToken });
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// -----------------------------------------
+// API Đăng xuất (Logout)
+// -----------------------------------------
+app.delete('/logout', async (req, res) => {
+    const { refreshToken } = req.body;
+    try {
+        // Xóa token khỏi Database
+        await pool.query('DELETE FROM refresh_tokens WHERE token = ?', [refreshToken]);
+        res.status(204).send(); // 204 No Content: Xóa thành công
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
