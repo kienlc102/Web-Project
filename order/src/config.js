@@ -31,7 +31,7 @@ const config = {
     queue: process.env.FULFILLMENT_CONSUMER_QUEUE || "ordering.fulfillment-events",
     routingKeys: parseCsv(
       process.env.FULFILLMENT_CONSUMER_ROUTING_KEYS,
-      "fulfillment.seller-confirmed,fulfillment.delivery.updated,fulfillment.completed",
+      "fulfillment.seller-order-confirmed,fulfillment.status-updated,fulfillment.completed",
     ),
     prefetch: Number(process.env.FULFILLMENT_CONSUMER_PREFETCH || 20),
     reconnectIntervalMs: Number(process.env.FULFILLMENT_CONSUMER_RECONNECT_MS || 5000),

@@ -68,7 +68,7 @@ Base URL (example):
   "paymentMethod": "COD"
 }
 - Response: 201 with created order.
-- Side effect: outbox emits OrderPlaced.
+- Side effect: outbox emits order.created.
 
 #### Get order detail
 - Method: GET
@@ -98,17 +98,18 @@ Base URL (example):
 - Purpose: Fulfillment Service (or event-relay worker) sends fulfillment domain events to update order status.
 - Body:
 {
-  "eventType": "SellerOrderConfirmed",
+  "eventType": "fulfillment.seller-order-confirmed",
   "data": {
     "orderId": "order_uuid"
   }
 }
 
 Supported eventType values:
-- SellerOrderConfirmed => transition to SELLER_CONFIRMED
-- DeliveryUpdated with deliveryStatus=IN_TRANSIT => transition to IN_DELIVERY
-- DeliveryUpdated with deliveryStatus=DELIVERED => transition to DELIVERED
-- OrderCompleted => transition to COMPLETED
+- fulfillment.seller-order-confirmed => transition to SELLER_CONFIRMED
+- fulfillment.status-updated with newStatus=SHIPPED => transition to IN_DELIVERY
+- fulfillment.status-updated with newStatus=DELIVERED => transition to DELIVERED
+- fulfillment.status-updated with newStatus=COMPLETED => transition to COMPLETED
+- fulfillment.completed => transition to COMPLETED
 
 #### Get pending outbox events
 - Method: GET
@@ -126,39 +127,32 @@ Supported eventType values:
 
 ## 2) Events emitted by Ordering Service (via outbox)
 
-### OrderPlaced
+### order.created
 Payload:
 {
   "orderId": "order_uuid",
-  "userId": "u_123",
+  "customerId": "u_123",
+  "sellerId": "s_456",
   "items": [
     {
       "productId": "p_100",
-      "sellerId": "s_456",
-      "name": "Ao hoodie",
+      "productName": "Ao hoodie",
       "quantity": 2,
-      "unitPrice": 250000,
-      "lineTotal": 500000
+      "price": 250000
     }
   ],
-  "totals": {
-    "subtotal": 500000,
-    "totalQuantity": 2
-  },
-  "shippingAddress": { "...": "..." },
-  "paymentMethod": "COD",
-  "createdAt": "2026-04-11T00:00:00.000Z"
+  "totalAmount": 500000
 }
 
 Typical consumers:
 - Fulfillment Service (create seller orders and delivery tracking)
 - Notification Service (send order placed notification)
 
-### OrderCancelled
+### order.cancelled
 Payload:
 {
   "orderId": "order_uuid",
-  "userId": "u_123",
+  "customerId": "u_123",
   "reason": "Customer requested cancellation",
   "cancelledAt": "2026-04-11T00:00:00.000Z"
 }
@@ -168,7 +162,7 @@ Typical consumers:
 - Notification Service (send cancellation notification)
 - Payment Service (trigger refund if needed)
 
-### OrderStatusUpdated
+### order.status.updated
 Payload:
 {
   "orderId": "order_uuid",

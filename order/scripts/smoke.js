@@ -65,7 +65,7 @@ async function run() {
   });
 
   const confirmed = await orderService.applyFulfillmentEvent({
-    eventType: "SellerOrderConfirmed",
+    eventType: "fulfillment.seller-order-confirmed",
     data: { orderId: order.id },
   });
 
@@ -108,8 +108,8 @@ async function run() {
 
   const pendingOutbox = await orderService.listPendingOutbox();
 
-  const hasPlaced = pendingOutbox.some((event) => event.eventType === "OrderPlaced");
-  const hasCancelled = pendingOutbox.some((event) => event.eventType === "OrderCancelled");
+  const hasPlaced = pendingOutbox.some((event) => event.eventType === "order.created");
+  const hasCancelled = pendingOutbox.some((event) => event.eventType === "order.cancelled");
 
   assert(hasPlaced, "Expected OrderPlaced event in outbox");
   assert(hasCancelled, "Expected OrderCancelled event in outbox");

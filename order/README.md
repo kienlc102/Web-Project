@@ -56,7 +56,7 @@ Environment variables:
 - `OUTBOX_PUBLISHER_BATCH_SIZE` (default: `50`)
 - `FULFILLMENT_CONSUMER_ENABLED` (default: `true`)
 - `FULFILLMENT_CONSUMER_QUEUE` (default: `ordering.fulfillment-events`)
-- `FULFILLMENT_CONSUMER_ROUTING_KEYS` (default: `fulfillment.seller-confirmed,fulfillment.delivery.updated,fulfillment.completed`)
+- `FULFILLMENT_CONSUMER_ROUTING_KEYS` (default: `fulfillment.seller-order-confirmed,fulfillment.status-updated,fulfillment.completed`)
 - `FULFILLMENT_CONSUMER_PREFETCH` (default: `20`)
 - `FULFILLMENT_CONSUMER_RECONNECT_MS` (default: `5000`)
 
@@ -72,15 +72,15 @@ On startup, the service initializes these tables (if missing):
 
 Outbox routing keys:
 
-- `OrderPlaced` -> `order.created`
-- `OrderCancelled` -> `order.cancelled`
-- `OrderStatusUpdated` -> `order.status.updated`
+- `order.created` -> `order.created`
+- `order.cancelled` -> `order.cancelled`
+- `order.status.updated` -> `order.status.updated`
 
 Inbound fulfillment routing keys consumed:
 
-- `fulfillment.seller-confirmed` -> `SellerOrderConfirmed`
-- `fulfillment.delivery.updated` -> `DeliveryUpdated`
-- `fulfillment.completed` -> `OrderCompleted`
+- `fulfillment.seller-order-confirmed`
+- `fulfillment.status-updated`
+- `fulfillment.completed`
 
 ## Order state machine
 

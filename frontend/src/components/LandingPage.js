@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import CatalogList from './catalog/CatalogList';
+import { addProductToCart, formatVnd, getOrCreateCart } from '../utils/orderingApi';
 
 // Dữ liệu mẫu cho sản phẩm
 const featuredProducts = [
@@ -8,68 +10,6 @@ const featuredProducts = [
   { id: 4, sellerId: 'seller-001', name: 'Loa Bluetooth Mini', unitPrice: 1200000, image: 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=500&q=80' },
 ];
 
-const ORDERING_BASE_URL = process.env.REACT_APP_ORDERING_URL || 'http://localhost:8083';
-const CART_STORAGE_KEY = 'ordering_cart_id';
-const DEMO_USER_ID = 'user-demo-001';
-
-function formatVnd(value) {
-  return new Intl.NumberFormat('vi-VN').format(value) + 'đ';
-}
-
-async function parseResponse(response) {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = payload?.error?.message || 'Không thể kết nối Ordering Service';
-    throw new Error(message);
-  }
-  return payload.data;
-}
-
-async function createCart() {
-  const response = await fetch(`${ORDERING_BASE_URL}/api/v1/carts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId: DEMO_USER_ID, currency: 'VND' }),
-  });
-
-  const cart = await parseResponse(response);
-  localStorage.setItem(CART_STORAGE_KEY, cart.id);
-  return cart;
-}
-
-async function getCart(cartId) {
-  const response = await fetch(`${ORDERING_BASE_URL}/api/v1/carts/${cartId}`);
-  return parseResponse(response);
-}
-
-async function getOrCreateCart() {
-  const storedCartId = localStorage.getItem(CART_STORAGE_KEY);
-
-  if (storedCartId) {
-    try {
-      return await getCart(storedCartId);
-    } catch (error) {
-      localStorage.removeItem(CART_STORAGE_KEY);
-    }
-  }
-
-  return createCart();
-}
-
-async function addProductToCart(cartId, product) {
-  const response = await fetch(`${ORDERING_BASE_URL}/api/v1/carts/${cartId}/items`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      productId: String(product.id),
-      sellerId: product.sellerId,
-      name: product.name,
-      quantity: 1,
-      unitPrice: product.unitPrice,
-    }),
-  });
-  return parseResponse(response);
-}
 
 const LandingPage = () => {
   const [cart, setCart] = useState(null);
@@ -263,6 +203,8 @@ const LandingPage = () => {
             </div>
           </div>
         </section>
+
+        <CatalogList />
 
         {/* Featured Products */}
         <section id="products" className="products-section">

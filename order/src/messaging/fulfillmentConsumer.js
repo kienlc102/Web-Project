@@ -3,9 +3,11 @@ const config = require("../config");
 const orderService = require("../services/orderService");
 
 const ROUTING_KEY_EVENT_MAP = {
+  "fulfillment.seller-order-confirmed": "fulfillment.seller-order-confirmed",
+  "fulfillment.status-updated": "fulfillment.status-updated",
+  "fulfillment.completed": "fulfillment.completed",
   "fulfillment.seller-confirmed": "SellerOrderConfirmed",
   "fulfillment.delivery.updated": "DeliveryUpdated",
-  "fulfillment.completed": "OrderCompleted",
 };
 
 function tryParseJson(buffer) {
@@ -22,7 +24,7 @@ function normalizeFulfillmentEvent(message, routingKey) {
   }
 
   const inferredType = ROUTING_KEY_EVENT_MAP[routingKey] || null;
-  const eventType = message.eventType || message.type || inferredType;
+  const eventType = message.eventType || message.eventName || message.type || inferredType;
 
   // Supports common wrappers:
   // - { eventType, data }

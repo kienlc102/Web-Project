@@ -5,10 +5,20 @@ const orderService = require("../services/orderService");
 const router = express.Router();
 
 const fulfillmentEventSchema = z.object({
-  eventType: z.enum(["SellerOrderConfirmed", "DeliveryUpdated", "OrderCompleted"]),
+  eventType: z.enum([
+    "fulfillment.seller-order-confirmed",
+    "fulfillment.status-updated",
+    "fulfillment.completed",
+    "SellerOrderConfirmed",
+    "DeliveryUpdated",
+    "OrderCompleted",
+  ]),
   data: z.object({
     orderId: z.string().min(1),
     deliveryStatus: z.enum(["CREATED", "IN_TRANSIT", "DELIVERED", "FAILED"]).optional(),
+    newStatus: z
+      .enum(["PENDING", "CONFIRMED", "PACKED", "SHIPPED", "DELIVERED", "COMPLETED", "CANCELLED"])
+      .optional(),
   }),
 });
 

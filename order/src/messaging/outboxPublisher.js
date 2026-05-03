@@ -61,12 +61,11 @@ function startOutboxPublisher() {
           routingKey,
           Buffer.from(
             JSON.stringify({
-              id: event.id,
-              aggregateType: event.aggregateType,
+              eventId: event.id,
+              eventName: event.eventType,
               aggregateId: event.aggregateId,
-              eventType: event.eventType,
+              occurredAt: event.createdAt,
               payload: event.payload,
-              createdAt: event.createdAt,
             }),
           ),
           { contentType: "application/json", persistent: true },

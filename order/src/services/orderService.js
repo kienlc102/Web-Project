@@ -72,18 +72,22 @@ async function createOrderFromCart({ cartId, userId, shippingAddress, paymentMet
 
     await store.markCartCheckedOut(cartId, createdAt, client);
 
+    const primarySellerId = order.items[0]?.sellerId || "unknown-seller";
     await store.pushOutboxEvent(
       {
         aggregateId: order.id,
-        eventType: "OrderPlaced",
+        eventType: "order.created",
         payload: {
           orderId: order.id,
-          userId: order.userId,
-          items: order.items,
-          totals: order.totals,
-          shippingAddress: order.shippingAddress,
-          paymentMethod: order.paymentMethod,
-          createdAt,
+          customerId: order.userId,
+          sellerId: primarySellerId,
+          items: order.items.map((item) => ({
+            productId: item.productId,
+            productName: item.name,
+            quantity: item.quantity,
+            price: item.unitPrice,
+          })),
+          totalAmount: order.totals.subtotal,
         },
       },
       client,
@@ -136,10 +140,10 @@ async function cancelOrder(orderId, reason = "Cancelled by user") {
     await store.pushOutboxEvent(
       {
         aggregateId: next.id,
-        eventType: "OrderCancelled",
+        eventType: "order.cancelled",
         payload: {
           orderId: next.id,
-          userId: next.userId,
+          customerId: next.userId,
           reason,
           cancelledAt,
         },
@@ -181,7 +185,7 @@ async function transitionOrderStatus(orderId, toStatus, metadata = {}) {
     await store.pushOutboxEvent(
       {
         aggregateId: next.id,
-        eventType: "OrderStatusUpdated",
+        eventType: "order.status.updated",
         payload: {
           orderId: next.id,
           fromStatus: order.status,
@@ -214,7 +218,7 @@ async function applyFulfillmentEvent(event) {
     throw err;
   }
 
-  if (eventType === "SellerOrderConfirmed") {
+  if (eventType === "fulfillment.seller-order-confirmed" || eventType === "SellerOrderConfirmed") {
     return transitionOrderStatus(data.orderId, ORDER_STATUS.SELLER_CONFIRMED, {
       by: "FULFILLMENT_SERVICE",
       reason: "Seller confirmed order",
@@ -222,8 +226,16 @@ async function applyFulfillmentEvent(event) {
     });
   }
 
-  if (eventType === "DeliveryUpdated") {
-    if (data.deliveryStatus === "IN_TRANSIT") {
+  if (eventType === "fulfillment.status-updated" || eventType === "DeliveryUpdated") {
+    if (data.newStatus === "CONFIRMED") {
+      return transitionOrderStatus(data.orderId, ORDER_STATUS.SELLER_CONFIRMED, {
+        by: "FULFILLMENT_SERVICE",
+        reason: "Seller confirmed order",
+        sourceEventType: eventType,
+      });
+    }
+
+    if (data.newStatus === "SHIPPED" || data.deliveryStatus === "IN_TRANSIT") {
       return transitionOrderStatus(data.orderId, ORDER_STATUS.IN_DELIVERY, {
         by: "FULFILLMENT_SERVICE",
         reason: "Delivery is in transit",
@@ -231,7 +243,7 @@ async function applyFulfillmentEvent(event) {
       });
     }
 
-    if (data.deliveryStatus === "DELIVERED") {
+    if (data.newStatus === "DELIVERED" || data.deliveryStatus === "DELIVERED") {
       return transitionOrderStatus(data.orderId, ORDER_STATUS.DELIVERED, {
         by: "FULFILLMENT_SERVICE",
         reason: "Delivery completed to customer",
@@ -239,10 +251,18 @@ async function applyFulfillmentEvent(event) {
       });
     }
 
+    if (data.newStatus === "COMPLETED") {
+      return transitionOrderStatus(data.orderId, ORDER_STATUS.COMPLETED, {
+        by: "FULFILLMENT_SERVICE",
+        reason: "Order completed by fulfillment",
+        sourceEventType: eventType,
+      });
+    }
+
     return getOrder(data.orderId);
   }
 
-  if (eventType === "OrderCompleted") {
+  if (eventType === "fulfillment.completed" || eventType === "OrderCompleted") {
     return transitionOrderStatus(data.orderId, ORDER_STATUS.COMPLETED, {
       by: "FULFILLMENT_SERVICE",
       reason: "Order completed by fulfillment",
