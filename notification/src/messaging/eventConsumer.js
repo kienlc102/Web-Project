@@ -1,8 +1,11 @@
 const amqp = require('amqplib');
 const config = require('../config');
 const notificationService = require('../services/notificationService');
+const { canonicalizeEventName } = require('../contracts/eventContract');
 
-const CONSUMER_NAME = 'notification.EventConsumer';
+const MAIN_CONSUMER_NAME = 'notification.EventConsumer';
+
+const CONSUMER_NAME = MAIN_CONSUMER_NAME;
 
 function tryParseJson(buffer) {
   try {
@@ -17,7 +20,7 @@ function normalizeEvent(message) {
     return null;
   }
 
-  const eventName = message.eventName || message.eventType || message.type;
+  const eventName = canonicalizeEventName(message.eventName || message.eventType || message.type);
   const payload = message.payload || message.data || message;
 
   if (!eventName || !payload) {
@@ -27,6 +30,7 @@ function normalizeEvent(message) {
   return {
     eventId: message.eventId || message.id,
     eventName,
+    routingKey: message.routingKey || null,
     payload,
   };
 }
@@ -95,7 +99,15 @@ function startEventConsumer() {
         durable: true,
       });
 
-      await channel.assertQueue(config.consumer.queue, { durable: true });
+      await channel.assertExchange(config.consumer.dlqExchange, 'topic', { durable: true });
+      await channel.assertQueue(config.consumer.queue, {
+        durable: true,
+        arguments: {
+          'x-dead-letter-exchange': config.consumer.dlqExchange,
+        },
+      });
+      await channel.assertQueue(config.consumer.dlqQueue, { durable: true });
+      await channel.bindQueue(config.consumer.dlqQueue, config.consumer.dlqExchange, '#');
 
       for (const routingKey of config.consumer.routingKeys) {
         // eslint-disable-next-line no-await-in-loop
@@ -115,7 +127,7 @@ function startEventConsumer() {
           if (!parsed) {
             // eslint-disable-next-line no-console
             console.error('notification-consumer invalid JSON message');
-            channel.ack(msg);
+            channel.nack(msg, false, false);
             return;
           }
 
@@ -123,7 +135,7 @@ function startEventConsumer() {
           if (!event) {
             // eslint-disable-next-line no-console
             console.error('notification-consumer unsupported message');
-            channel.ack(msg);
+            channel.nack(msg, false, false);
             return;
           }
 
@@ -131,11 +143,47 @@ function startEventConsumer() {
             await notificationService.handleEvent(event, CONSUMER_NAME);
             channel.ack(msg);
           } catch (err) {
+            const nextAttempt = Number(msg.properties?.headers?.['x-attempt'] || 0) + 1;
+            const headers = {
+              ...(msg.properties?.headers || {}),
+              'x-attempt': nextAttempt,
+              'x-original-event-id': event.eventId || null,
+              'x-original-routing-key': msg.fields.routingKey || null,
+              'x-last-error': err.message,
+            };
+
             // eslint-disable-next-line no-console
             console.error('notification-consumer failed', {
               message: err.message,
               eventName: event.eventName,
+              attempt: nextAttempt,
             });
+
+            if (nextAttempt < config.consumer.maxAttempts) {
+              channel.publish(
+                config.rabbitmq.exchange,
+                msg.fields.routingKey || event.eventName,
+                msg.content,
+                {
+                  contentType: 'application/json',
+                  persistent: true,
+                  headers,
+                },
+              );
+              channel.ack(msg);
+              return;
+            }
+
+            channel.publish(
+              config.consumer.dlqExchange,
+              msg.fields.routingKey || event.eventName,
+              msg.content,
+              {
+                contentType: 'application/json',
+                persistent: true,
+                headers,
+              },
+            );
             channel.ack(msg);
           }
         },

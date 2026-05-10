@@ -30,6 +30,9 @@ const config = {
     ),
     prefetch: Number(process.env.NOTIFICATION_CONSUMER_PREFETCH || 20),
     reconnectIntervalMs: Number(process.env.NOTIFICATION_CONSUMER_RECONNECT_MS || 5000),
+    maxAttempts: Number(process.env.NOTIFICATION_CONSUMER_MAX_ATTEMPTS || 5),
+    dlqExchange: process.env.NOTIFICATION_CONSUMER_DLQ_EXCHANGE || 'ecommerce.events.dlq',
+    dlqQueue: process.env.NOTIFICATION_CONSUMER_DLQ_QUEUE || 'notification.events.dlq',
   },
 };
 
