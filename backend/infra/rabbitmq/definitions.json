@@ -1,0 +1,158 @@
+{
+  "users": [
+    {
+      "name": "admin",
+      "password": "admin123",
+      "tags": "administrator"
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "ecommerce.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "fulfillment.order-created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "review.fulfillment-completed",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "catalog.review-created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "catalog.fulfillment-completed",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "ordering.fulfillment-status-updated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "ordering.fulfillment-completed",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "notification.fulfillment-status-updated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "notification.review-created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "vhost": "/",
+      "source": "ecommerce.events",
+      "destination": "fulfillment.order-created",
+      "destination_type": "queue",
+      "routing_key": "order.created",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "ecommerce.events",
+      "destination": "review.fulfillment-completed",
+      "destination_type": "queue",
+      "routing_key": "fulfillment.completed",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "ecommerce.events",
+      "destination": "catalog.review-created",
+      "destination_type": "queue",
+      "routing_key": "review.created",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "ecommerce.events",
+      "destination": "catalog.fulfillment-completed",
+      "destination_type": "queue",
+      "routing_key": "fulfillment.completed",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "ecommerce.events",
+      "destination": "ordering.fulfillment-status-updated",
+      "destination_type": "queue",
+      "routing_key": "fulfillment.status-updated",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "ecommerce.events",
+      "destination": "ordering.fulfillment-completed",
+      "destination_type": "queue",
+      "routing_key": "fulfillment.completed",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "ecommerce.events",
+      "destination": "notification.fulfillment-status-updated",
+      "destination_type": "queue",
+      "routing_key": "fulfillment.status-updated",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "ecommerce.events",
+      "destination": "notification.review-created",
+      "destination_type": "queue",
+      "routing_key": "review.created",
+      "arguments": {}
+    }
+  ],
+  "permissions": [
+    {
+      "user": "admin",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ]
+}
