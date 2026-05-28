@@ -27,6 +27,9 @@ export class ReviewEligibilityEntity {
   @Column()
   sellerId: string;
 
+  @Column({ nullable: true })
+  productId: string;
+
   @Column({ default: true })
   isEligible: boolean;
 

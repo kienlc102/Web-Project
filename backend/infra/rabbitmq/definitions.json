@@ -13,7 +13,7 @@
   ],
   "exchanges": [
     {
-      "name": "ecommerce.events",
+      "name": "cnweb.events",
       "vhost": "/",
       "type": "topic",
       "durable": true,
@@ -24,14 +24,28 @@
   ],
   "queues": [
     {
-      "name": "fulfillment.order-created",
+      "name": "fulfillment.order_placed.q",
       "vhost": "/",
       "durable": true,
       "auto_delete": false,
       "arguments": {}
     },
     {
-      "name": "review.fulfillment-completed",
+      "name": "review.order_completed.q",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "ordering.fulfillment_events.q",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "notification.domain_events.q",
       "vhost": "/",
       "durable": true,
       "auto_delete": false,
@@ -83,23 +97,63 @@
   "bindings": [
     {
       "vhost": "/",
-      "source": "ecommerce.events",
-      "destination": "fulfillment.order-created",
+      "source": "cnweb.events",
+      "destination": "fulfillment.order_placed.q",
       "destination_type": "queue",
-      "routing_key": "order.created",
+      "routing_key": "order.placed",
       "arguments": {}
     },
     {
       "vhost": "/",
-      "source": "ecommerce.events",
-      "destination": "review.fulfillment-completed",
+      "source": "cnweb.events",
+      "destination": "review.order_completed.q",
       "destination_type": "queue",
-      "routing_key": "fulfillment.completed",
+      "routing_key": "fulfillment.order_completed",
       "arguments": {}
     },
     {
       "vhost": "/",
-      "source": "ecommerce.events",
+      "source": "cnweb.events",
+      "destination": "ordering.fulfillment_events.q",
+      "destination_type": "queue",
+      "routing_key": "fulfillment.seller_order_confirmed",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "cnweb.events",
+      "destination": "ordering.fulfillment_events.q",
+      "destination_type": "queue",
+      "routing_key": "fulfillment.delivery_updated",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "cnweb.events",
+      "destination": "ordering.fulfillment_events.q",
+      "destination_type": "queue",
+      "routing_key": "fulfillment.order_completed",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "cnweb.events",
+      "destination": "notification.domain_events.q",
+      "destination_type": "queue",
+      "routing_key": "order.*",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "cnweb.events",
+      "destination": "notification.domain_events.q",
+      "destination_type": "queue",
+      "routing_key": "fulfillment.*",
+      "arguments": {}
+    },
+    {
+      "vhost": "/",
+      "source": "cnweb.events",
       "destination": "catalog.review-created",
       "destination_type": "queue",
       "routing_key": "review.created",
@@ -107,39 +161,39 @@
     },
     {
       "vhost": "/",
-      "source": "ecommerce.events",
+      "source": "cnweb.events",
       "destination": "catalog.fulfillment-completed",
       "destination_type": "queue",
-      "routing_key": "fulfillment.completed",
+      "routing_key": "fulfillment.order_completed",
       "arguments": {}
     },
     {
       "vhost": "/",
-      "source": "ecommerce.events",
+      "source": "cnweb.events",
       "destination": "ordering.fulfillment-status-updated",
       "destination_type": "queue",
-      "routing_key": "fulfillment.status-updated",
+      "routing_key": "fulfillment.delivery_updated",
       "arguments": {}
     },
     {
       "vhost": "/",
-      "source": "ecommerce.events",
+      "source": "cnweb.events",
       "destination": "ordering.fulfillment-completed",
       "destination_type": "queue",
-      "routing_key": "fulfillment.completed",
+      "routing_key": "fulfillment.order_completed",
       "arguments": {}
     },
     {
       "vhost": "/",
-      "source": "ecommerce.events",
+      "source": "cnweb.events",
       "destination": "notification.fulfillment-status-updated",
       "destination_type": "queue",
-      "routing_key": "fulfillment.status-updated",
+      "routing_key": "fulfillment.delivery_updated",
       "arguments": {}
     },
     {
       "vhost": "/",
-      "source": "ecommerce.events",
+      "source": "cnweb.events",
       "destination": "notification.review-created",
       "destination_type": "queue",
       "routing_key": "review.created",

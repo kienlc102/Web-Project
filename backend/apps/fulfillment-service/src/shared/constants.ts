@@ -14,7 +14,7 @@ export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
 /** Allowed transitions map */
 export const ALLOWED_TRANSITIONS: Record<FulfillmentStatus, FulfillmentStatus[]> = {
   PENDING: ['CONFIRMED', 'CANCELLED'],
-  CONFIRMED: ['PACKED', 'CANCELLED'],
+  CONFIRMED: ['PACKED', 'SHIPPED', 'CANCELLED'],
   PACKED: ['SHIPPED', 'CANCELLED'],
   SHIPPED: ['DELIVERED'],
   DELIVERED: ['COMPLETED'],
@@ -23,14 +23,14 @@ export const ALLOWED_TRANSITIONS: Record<FulfillmentStatus, FulfillmentStatus[]>
 };
 
 /** RabbitMQ exchange and queue names */
-export const EXCHANGE = 'ecommerce.events';
+export const EXCHANGE = process.env.EVENT_EXCHANGE ?? 'cnweb.events';
 
 export const QUEUES = {
-  ORDER_CREATED: 'fulfillment.order-created',
+  ORDER_PLACED: 'fulfillment.order_placed.q',
 };
 
 export const ROUTING_KEYS = {
-  SELLER_ORDER_CONFIRMED: 'fulfillment.seller-order-confirmed',
-  FULFILLMENT_STATUS_UPDATED: 'fulfillment.status-updated',
-  FULFILLMENT_COMPLETED: 'fulfillment.completed',
+  SELLER_ORDER_CONFIRMED: 'fulfillment.seller_order_confirmed',
+  DELIVERY_UPDATED: 'fulfillment.delivery_updated',
+  ORDER_COMPLETED: 'fulfillment.order_completed',
 };

@@ -1,4 +1,5 @@
-export const REVIEW_CREATED_EVENT = 'review.created';
+export const REVIEW_CREATED_EVENT = 'ReviewCreated';
+export const REVIEW_CREATED_ROUTING_KEY = 'review.created';
 
 export interface ReviewCreatedPayload {
   reviewId: string;

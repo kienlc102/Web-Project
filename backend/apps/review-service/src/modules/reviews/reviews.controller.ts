@@ -38,8 +38,15 @@ export class ReviewsController {
   checkEligibility(
     @Query('customerId') customerId: string,
     @Query('orderId') orderId: string,
+    @Query('productId') productId?: string,
   ) {
-    return this.reviewsService.checkEligibility(customerId, orderId);
+    return this.reviewsService.checkEligibility(customerId, orderId, productId);
+  }
+
+  /** GET /reviews/products/:productId */
+  @Get('products/:productId')
+  findProductReviews(@Param('productId') productId: string) {
+    return this.reviewsService.findByProduct(productId);
   }
 
   /** GET /reviews/:id */

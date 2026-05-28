@@ -1,20 +1,24 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, FindOptionsWhere } from 'typeorm';
 import { FulfillmentEntity } from './entities/fulfillment.entity';
 import { OutboxEntity } from '../outbox/outbox.entity';
+import { ProcessedMessageEntity } from '../inbox/processed-message.entity';
 import { CreateFulfillmentDto } from './dto/create-fulfillment.dto';
 import { UpdateFulfillmentStatusDto } from './dto/update-fulfillment-status.dto';
 import {
   FulfillmentStatus,
   ALLOWED_TRANSITIONS,
-  EXCHANGE,
   ROUTING_KEYS,
 } from '../../shared/constants';
 import { createEvent } from '@backend/common';
 import {
-  FulfillmentCompletedPayload,
-  FulfillmentStatusUpdatedPayload,
+  DeliveryUpdatedPayload,
+  DELIVERY_UPDATED_EVENT,
+  ORDER_COMPLETED_EVENT,
+  OrderCompletedPayload,
+  OrderPlacedPayload,
+  SELLER_ORDER_CONFIRMED_EVENT,
   SellerOrderConfirmedPayload,
 } from '@backend/contracts';
 
@@ -32,15 +36,72 @@ export class FulfillmentService {
     private readonly dataSource: DataSource,
   ) {}
 
-  /** Create a new fulfillment record (from OrderCreated event or REST) */
+  /** Create a new fulfillment record from REST or local tests. */
   async create(dto: CreateFulfillmentDto): Promise<FulfillmentEntity> {
     const fulfillment = this.fulfillmentRepo.create({
       orderId: dto.orderId,
       customerId: dto.customerId,
       sellerId: dto.sellerId,
+      items: dto.items?.map((item) => ({
+        productId: item.productId,
+        name: item.name ?? item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice ?? item.price,
+        lineTotal:
+          item.lineTotal ??
+          (item.unitPrice ?? item.price ?? 0) * item.quantity,
+      })),
       status: 'PENDING',
     });
     return this.fulfillmentRepo.save(fulfillment);
+  }
+
+  async createFromOrderPlaced(
+    eventId: string,
+    payload: OrderPlacedPayload,
+    consumerName: string,
+  ): Promise<FulfillmentEntity[]> {
+    return this.dataSource.transaction(async (manager) => {
+      const processed = await manager.findOne(ProcessedMessageEntity, {
+        where: { consumerName, messageId: eventId },
+      });
+      if (processed) {
+        this.logger.warn(`Duplicate OrderPlaced event ${eventId}, skipping`);
+        return [];
+      }
+
+      const itemsBySeller = new Map<string, OrderPlacedPayload['items']>();
+      for (const item of payload.items) {
+        const sellerItems = itemsBySeller.get(item.sellerId) ?? [];
+        sellerItems.push(item);
+        itemsBySeller.set(item.sellerId, sellerItems);
+      }
+
+      const fulfillments: FulfillmentEntity[] = [];
+      for (const [sellerId, items] of itemsBySeller.entries()) {
+        const fulfillment = manager.create(FulfillmentEntity, {
+          orderId: payload.orderId,
+          customerId: payload.customerId,
+          sellerId,
+          status: 'PENDING',
+          items: items.map((item) => ({
+            productId: item.productId,
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: item.lineTotal,
+          })),
+        });
+        fulfillments.push(await manager.save(FulfillmentEntity, fulfillment));
+      }
+
+      await manager.save(ProcessedMessageEntity, {
+        consumerName,
+        messageId: eventId,
+      });
+
+      return fulfillments;
+    });
   }
 
   /** List all fulfillments */
@@ -60,6 +121,58 @@ export class FulfillmentService {
     return this.fulfillmentRepo.find({ where: { orderId } });
   }
 
+  async findSellerOrders(filters: {
+    sellerId?: string;
+    status?: FulfillmentStatus;
+    page?: number;
+    limit?: number;
+  }): Promise<{ items: FulfillmentEntity[]; page: number; limit: number }> {
+    const page = Math.max(filters.page ?? 1, 1);
+    const limit = Math.min(Math.max(filters.limit ?? 20, 1), 100);
+    const where: FindOptionsWhere<FulfillmentEntity> = {};
+    if (filters.sellerId) where.sellerId = filters.sellerId;
+    if (filters.status) where.status = filters.status;
+
+    const items = await this.fulfillmentRepo.find({
+      where,
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return { items, page, limit };
+  }
+
+  confirmSellerOrder(id: string, sellerId?: string): Promise<FulfillmentEntity> {
+    return this.updateStatus(id, { status: 'CONFIRMED' }, sellerId);
+  }
+
+  shipSellerOrder(
+    id: string,
+    dto: { carrier?: string; trackingCode?: string },
+    sellerId?: string,
+  ): Promise<FulfillmentEntity> {
+    return this.updateStatus(
+      id,
+      { status: 'SHIPPED', carrier: dto.carrier, trackingCode: dto.trackingCode },
+      sellerId,
+    );
+  }
+
+  deliverSellerOrder(
+    id: string,
+    sellerId?: string,
+  ): Promise<FulfillmentEntity> {
+    return this.updateStatus(id, { status: 'DELIVERED' }, sellerId);
+  }
+
+  completeSellerOrder(
+    id: string,
+    sellerId?: string,
+  ): Promise<FulfillmentEntity> {
+    return this.updateStatus(id, { status: 'COMPLETED' }, sellerId);
+  }
+
   /**
    * Update fulfillment status using a transactional outbox pattern.
    * Both the status change and the outbox event are written in a single transaction.
@@ -67,6 +180,7 @@ export class FulfillmentService {
   async updateStatus(
     id: string,
     dto: UpdateFulfillmentStatusDto,
+    sellerId?: string,
   ): Promise<FulfillmentEntity> {
     return this.dataSource.transaction(async (manager) => {
       const fulfillment = await manager.findOne(FulfillmentEntity, {
@@ -74,6 +188,9 @@ export class FulfillmentService {
       });
       if (!fulfillment) {
         throw new NotFoundException(`Fulfillment ${id} not found`);
+      }
+      if (sellerId && fulfillment.sellerId !== sellerId) {
+        throw new BadRequestException('Fulfillment does not belong to seller');
       }
 
       const currentStatus = fulfillment.status as FulfillmentStatus;
@@ -115,58 +232,61 @@ export class FulfillmentService {
 
       await manager.save(FulfillmentEntity, fulfillment);
 
-      // --- Write outbox events in the same transaction ---
-
-      // Always emit a status-updated event
-      const statusEvent = createEvent<FulfillmentStatusUpdatedPayload>(
-        ROUTING_KEYS.FULFILLMENT_STATUS_UPDATED,
-        fulfillment.id,
-        {
-          fulfillmentId: fulfillment.id,
-          orderId: fulfillment.orderId,
-          customerId: fulfillment.customerId,
-          sellerId: fulfillment.sellerId,
-          previousStatus,
-          newStatus,
-          trackingCode: fulfillment.trackingCode,
-          carrier: fulfillment.carrier,
-          updatedAt: now.toISOString(),
-        },
-      );
-      await manager.save(OutboxEntity, {
-        eventId: statusEvent.eventId,
-        eventName: statusEvent.eventName,
-        aggregateId: statusEvent.aggregateId,
-        payload: statusEvent,
-        status: 'PENDING',
-      });
-
       // Emit SellerOrderConfirmed when status is CONFIRMED
       if (newStatus === 'CONFIRMED') {
         const confirmedEvent = createEvent<SellerOrderConfirmedPayload>(
-          ROUTING_KEYS.SELLER_ORDER_CONFIRMED,
+          SELLER_ORDER_CONFIRMED_EVENT,
           fulfillment.id,
           {
             fulfillmentId: fulfillment.id,
             orderId: fulfillment.orderId,
             customerId: fulfillment.customerId,
             sellerId: fulfillment.sellerId,
+            status: 'CONFIRMED',
             confirmedAt: now.toISOString(),
           },
+          { aggregateType: 'Fulfillment', producer: 'fulfillment-service' },
         );
         await manager.save(OutboxEntity, {
           eventId: confirmedEvent.eventId,
-          eventName: confirmedEvent.eventName,
+          eventName: ROUTING_KEYS.SELLER_ORDER_CONFIRMED,
           aggregateId: confirmedEvent.aggregateId,
           payload: confirmedEvent,
           status: 'PENDING',
         });
       }
 
-      // Emit FulfillmentCompleted when status is COMPLETED
+      if (newStatus === 'SHIPPED' || newStatus === 'DELIVERED') {
+        const deliveryEvent = createEvent<DeliveryUpdatedPayload>(
+          DELIVERY_UPDATED_EVENT,
+          fulfillment.id,
+          {
+            fulfillmentId: fulfillment.id,
+            orderId: fulfillment.orderId,
+            customerId: fulfillment.customerId,
+            sellerId: fulfillment.sellerId,
+            status: newStatus,
+            carrier: fulfillment.carrier,
+            trackingCode: fulfillment.trackingCode,
+            packedAt: fulfillment.packedAt?.toISOString() ?? null,
+            shippedAt: fulfillment.shippedAt?.toISOString() ?? null,
+            deliveredAt: fulfillment.deliveredAt?.toISOString() ?? null,
+          },
+          { aggregateType: 'Fulfillment', producer: 'fulfillment-service' },
+        );
+        await manager.save(OutboxEntity, {
+          eventId: deliveryEvent.eventId,
+          eventName: ROUTING_KEYS.DELIVERY_UPDATED,
+          aggregateId: deliveryEvent.aggregateId,
+          payload: deliveryEvent,
+          status: 'PENDING',
+        });
+      }
+
+      // Emit OrderCompleted when status is COMPLETED
       if (newStatus === 'COMPLETED') {
-        const completedEvent = createEvent<FulfillmentCompletedPayload>(
-          ROUTING_KEYS.FULFILLMENT_COMPLETED,
+        const completedEvent = createEvent<OrderCompletedPayload>(
+          ORDER_COMPLETED_EVENT,
           fulfillment.id,
           {
             fulfillmentId: fulfillment.id,
@@ -174,11 +294,17 @@ export class FulfillmentService {
             customerId: fulfillment.customerId,
             sellerId: fulfillment.sellerId,
             completedAt: now.toISOString(),
+            items:
+              fulfillment.items?.map((item) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+              })) ?? [],
           },
+          { aggregateType: 'Fulfillment', producer: 'fulfillment-service' },
         );
         await manager.save(OutboxEntity, {
           eventId: completedEvent.eventId,
-          eventName: completedEvent.eventName,
+          eventName: ROUTING_KEYS.ORDER_COMPLETED,
           aggregateId: completedEvent.aggregateId,
           payload: completedEvent,
           status: 'PENDING',
