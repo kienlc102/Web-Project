@@ -9,10 +9,15 @@ import { Repository, DataSource } from 'typeorm';
 import { ReviewEligibilityEntity } from './entities/review.entity';
 import { ReviewRecordEntity } from './entities/review-record.entity';
 import { OutboxEntity } from '../outbox/outbox.entity';
+import { ProcessedMessageEntity } from '../inbox/processed-message.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { createEvent } from '@backend/common';
-import { ReviewCreatedPayload } from '@backend/contracts';
+import {
+  OrderCompletedPayload,
+  REVIEW_CREATED_EVENT,
+  ReviewCreatedPayload,
+} from '@backend/contracts';
 import { ROUTING_KEYS } from '../../shared/constants';
 
 @Injectable()
@@ -33,22 +38,65 @@ export class ReviewsService {
   ) {}
 
   /**
-   * Create a review eligibility record (called when FulfillmentCompleted is consumed).
+   * Create review eligibility records when OrderCompleted is consumed.
    */
   async createEligibility(data: {
     fulfillmentId: string;
     orderId: string;
     customerId: string;
     sellerId: string;
-  }): Promise<ReviewEligibilityEntity> {
-    const eligibility = this.eligibilityRepo.create({
-      fulfillmentId: data.fulfillmentId,
-      orderId: data.orderId,
-      customerId: data.customerId,
-      sellerId: data.sellerId,
-      isEligible: true,
+    items: Array<{ productId: string; quantity: number }>;
+  }): Promise<ReviewEligibilityEntity[]> {
+    if (!data.items.length) return [];
+
+    const records = data.items.map((item) =>
+      this.eligibilityRepo.create({
+        fulfillmentId: data.fulfillmentId,
+        orderId: data.orderId,
+        customerId: data.customerId,
+        sellerId: data.sellerId,
+        productId: item.productId,
+        isEligible: true,
+      }),
+    );
+    return this.eligibilityRepo.save(records);
+  }
+
+  async createEligibilityFromOrderCompleted(
+    eventId: string,
+    payload: OrderCompletedPayload,
+    consumerName: string,
+  ): Promise<number> {
+    return this.dataSource.transaction(async (manager) => {
+      const processed = await manager.findOne(ProcessedMessageEntity, {
+        where: { consumerName, messageId: eventId },
+      });
+      if (processed) {
+        this.logger.warn(`Duplicate OrderCompleted event ${eventId}, skipping`);
+        return 0;
+      }
+
+      const records = payload.items.map((item) =>
+        manager.create(ReviewEligibilityEntity, {
+          fulfillmentId: payload.fulfillmentId,
+          orderId: payload.orderId,
+          customerId: payload.customerId,
+          sellerId: payload.sellerId,
+          productId: item.productId,
+          isEligible: true,
+        }),
+      );
+      if (records.length) {
+        await manager.save(ReviewEligibilityEntity, records);
+      }
+
+      await manager.save(ProcessedMessageEntity, {
+        consumerName,
+        messageId: eventId,
+      });
+
+      return records.length;
     });
-    return this.eligibilityRepo.save(eligibility);
   }
 
   /**
@@ -62,6 +110,7 @@ export class ReviewsService {
           fulfillmentId: dto.fulfillmentId,
           customerId: dto.customerId,
           orderId: dto.orderId,
+          productId: dto.productId,
           isEligible: true,
         },
       });
@@ -108,7 +157,7 @@ export class ReviewsService {
 
       // Write outbox event
       const event = createEvent<ReviewCreatedPayload>(
-        ROUTING_KEYS.REVIEW_CREATED,
+        REVIEW_CREATED_EVENT,
         saved.id,
         {
           reviewId: saved.id,
@@ -119,10 +168,11 @@ export class ReviewsService {
           comment: saved.comment,
           createdAt: saved.createdAt.toISOString(),
         },
+        { aggregateType: 'Review', producer: 'review-service' },
       );
       await manager.save(OutboxEntity, {
         eventId: event.eventId,
-        eventName: event.eventName,
+        eventName: ROUTING_KEYS.REVIEW_CREATED,
         aggregateId: event.aggregateId,
         payload: event,
         status: 'PENDING',
@@ -174,9 +224,12 @@ export class ReviewsService {
   async checkEligibility(
     customerId: string,
     orderId: string,
+    productId?: string,
   ): Promise<ReviewEligibilityEntity | null> {
     return this.eligibilityRepo.findOne({
-      where: { customerId, orderId },
+      where: productId
+        ? { customerId, orderId, productId }
+        : { customerId, orderId },
     });
   }
 }

@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { OrderCreatedConsumer } from './order-created.consumer';
+import { OrderPlacedConsumer } from './order-placed.consumer';
 import { FulfillmentModule } from '../fulfillment/fulfillment.module';
 import { InboxModule } from '../inbox/inbox.module';
 
 @Module({
   imports: [FulfillmentModule, InboxModule],
-  providers: [OrderCreatedConsumer],
+  providers: [OrderPlacedConsumer],
 })
 export class ConsumersModule {}

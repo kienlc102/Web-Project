@@ -1,8 +1,8 @@
 /** RabbitMQ exchange and queue names for review service */
-export const EXCHANGE = 'ecommerce.events';
+export const EXCHANGE = process.env.EVENT_EXCHANGE ?? 'cnweb.events';
 
 export const QUEUES = {
-  FULFILLMENT_COMPLETED: 'review.fulfillment-completed',
+  ORDER_COMPLETED: 'review.order_completed.q',
 };
 
 export const ROUTING_KEYS = {
