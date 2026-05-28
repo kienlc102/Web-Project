@@ -29,6 +29,15 @@ export class FulfillmentEntity {
   @Column({ nullable: true })
   carrier?: string;
 
+  @Column({ type: 'json', nullable: true })
+  items?: Array<{
+    productId: string;
+    name?: string;
+    quantity: number;
+    unitPrice?: number;
+    lineTotal?: number;
+  }>;
+
   @Column({ type: 'timestamp', nullable: true })
   packedAt?: Date;
 

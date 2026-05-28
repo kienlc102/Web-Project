@@ -4,8 +4,11 @@ export class CreateFulfillmentDto {
   sellerId: string;
   items?: Array<{
     productId: string;
-    productName: string;
+    name?: string;
+    productName?: string;
     quantity: number;
-    price: number;
+    unitPrice?: number;
+    price?: number;
+    lineTotal?: number;
   }>;
 }

@@ -18,6 +18,7 @@ export class CreateFulfillmentSchemaAndTables1712900000000
         status varchar(255) NOT NULL DEFAULT 'PENDING',
         trackingCode varchar(255) NULL,
         carrier varchar(255) NULL,
+        items json NULL,
         packedAt timestamp NULL,
         shippedAt timestamp NULL,
         deliveredAt timestamp NULL,

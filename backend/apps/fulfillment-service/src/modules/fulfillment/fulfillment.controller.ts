@@ -6,6 +6,7 @@ import {
   Param,
   Body,
   Query,
+  Headers,
 } from '@nestjs/common';
 import { FulfillmentService } from './fulfillment.service';
 import { CreateFulfillmentDto } from './dto/create-fulfillment.dto';
@@ -46,5 +47,64 @@ export class FulfillmentController {
     @Body() dto: UpdateFulfillmentStatusDto,
   ) {
     return this.fulfillmentService.updateStatus(id, dto);
+  }
+}
+
+@Controller('seller/orders')
+export class SellerOrdersController {
+  constructor(private readonly fulfillmentService: FulfillmentService) {}
+
+  /** GET /seller/orders */
+  @Get()
+  findSellerOrders(
+    @Query('sellerId') sellerId?: string,
+    @Query('status') status?: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Headers('x-seller-id') sellerIdHeader?: string,
+  ) {
+    return this.fulfillmentService.findSellerOrders({
+      sellerId: sellerIdHeader ?? sellerId,
+      status,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  /** PATCH /seller/orders/:id/confirm */
+  @Patch(':id/confirm')
+  confirm(
+    @Param('id') id: string,
+    @Headers('x-seller-id') sellerId?: string,
+  ) {
+    return this.fulfillmentService.confirmSellerOrder(id, sellerId);
+  }
+
+  /** PATCH /seller/orders/:id/ship */
+  @Patch(':id/ship')
+  ship(
+    @Param('id') id: string,
+    @Body() dto: { carrier?: string; trackingCode?: string },
+    @Headers('x-seller-id') sellerId?: string,
+  ) {
+    return this.fulfillmentService.shipSellerOrder(id, dto, sellerId);
+  }
+
+  /** PATCH /seller/orders/:id/deliver */
+  @Patch(':id/deliver')
+  deliver(
+    @Param('id') id: string,
+    @Headers('x-seller-id') sellerId?: string,
+  ) {
+    return this.fulfillmentService.deliverSellerOrder(id, sellerId);
+  }
+
+  /** PATCH /seller/orders/:id/complete */
+  @Patch(':id/complete')
+  complete(
+    @Param('id') id: string,
+    @Headers('x-seller-id') sellerId?: string,
+  ) {
+    return this.fulfillmentService.completeSellerOrder(id, sellerId);
   }
 }

@@ -16,6 +16,7 @@ export class CreateReviewSchemaAndTables1712900000000
         orderId varchar(255) NOT NULL,
         customerId varchar(255) NOT NULL,
         sellerId varchar(255) NOT NULL,
+        productId varchar(255) NOT NULL,
         isEligible tinyint(1) NOT NULL DEFAULT 1,
         createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
