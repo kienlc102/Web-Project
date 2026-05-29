@@ -60,13 +60,19 @@ async function listNotificationsByUser(userId, options = {}, client) {
     conditions.push('read_at IS NULL');
   }
 
+  const limit = Math.min(100, Math.max(1, Number(options.limit || 20)));
+  const skip = Math.max(0, Number(options.skip || 0));
+
+  params.push(limit);
+  params.push(skip);
+
   const query = `
     SELECT id, user_id, event_name, title, body, channel, status, payload,
            delivery_attempts, created_at, sent_at, read_at
     FROM notification.notifications
     WHERE ${conditions.join(' AND ')}
     ORDER BY created_at DESC
-    LIMIT 100
+    LIMIT $${params.length - 1} OFFSET $${params.length}
   `;
 
   const result = await db.query(query, params);
@@ -195,10 +201,45 @@ async function markEventProcessed(consumerName, eventId, client) {
   );
 }
 
+async function countNotificationsByUser(userId, client) {
+  const db = client || getPool();
+  const result = await db.query(
+    `
+      SELECT
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE read_at IS NULL) AS unread
+      FROM notification.notifications
+      WHERE user_id = $1
+    `,
+    [userId],
+  );
+  return {
+    total: Number(result.rows[0].total),
+    unread: Number(result.rows[0].unread),
+  };
+}
+
+async function markAllNotificationsRead(userId, client) {
+  const db = client || getPool();
+  const readAt = nowIso();
+  const result = await db.query(
+    `
+      UPDATE notification.notifications
+      SET read_at = $2::timestamptz
+      WHERE user_id = $1 AND read_at IS NULL
+      RETURNING id
+    `,
+    [userId, readAt],
+  );
+  return result.rowCount;
+}
+
 module.exports = {
   createNotification,
   listNotificationsByUser,
   markNotificationRead,
+  countNotificationsByUser,
+  markAllNotificationsRead,
   getPreferences,
   upsertPreferences,
   isDuplicateEvent,

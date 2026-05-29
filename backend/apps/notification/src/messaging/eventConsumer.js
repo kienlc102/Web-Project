@@ -92,6 +92,10 @@ function startEventConsumer() {
       connection.on('close', () => {
         channel = null;
         connection = null;
+        // Trigger an immediate reconnect rather than waiting for the next interval tick
+        if (!stopped) {
+          connectAndConsume().catch(() => {});
+        }
       });
 
       channel = await connection.createChannel();
@@ -160,6 +164,8 @@ function startEventConsumer() {
             });
 
             if (nextAttempt < config.consumer.maxAttempts) {
+              // Brief delay before retrying to avoid tight retry loops
+              await new Promise((resolve) => { setTimeout(resolve, 1000); });
               channel.publish(
                 config.rabbitmq.exchange,
                 msg.fields.routingKey || event.eventName,

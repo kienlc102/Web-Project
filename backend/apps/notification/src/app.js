@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const config = require('./config');
+const { getPool } = require('./db/postgres');
 const notificationsRouter = require('./routes/notifications');
 const preferencesRouter = require('./routes/preferences');
 const internalRouter = require('./routes/internal');
@@ -7,7 +9,10 @@ const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: config.cors.allowedOrigins,
+  credentials: true,
+}));
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -23,12 +28,23 @@ app.get('/', (req, res) => {
   });
 });
 
-app.get('/health', (req, res) => {
-  res.json({
-    service: 'notification-service',
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-  });
+app.get('/health', async (req, res) => {
+  try {
+    await getPool().query('SELECT 1');
+    res.json({
+      service: 'notification-service',
+      status: 'ok',
+      db: 'ok',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(503).json({
+      service: 'notification-service',
+      status: 'error',
+      db: 'unreachable',
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 app.use('/api/v1/notifications', notificationsRouter);

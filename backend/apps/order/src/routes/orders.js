@@ -32,24 +32,19 @@ const cancelOrderSchema = z.object({
   reason: z.string().min(1).optional(),
 });
 
-router.post("/", async (req, res, next) => {
-  try {
-    const payload = createOrderSchema.parse(req.body);
-    const userId = req.identity?.userId || payload.userId;
-    const order = await orderService.createOrderFromCart({
-      ...payload,
-      userId,
-    });
-    return res.status(201).json({ data: order });
-  } catch (err) {
-    return next(err);
-  }
-});
 
 router.post("/checkout", async (req, res, next) => {
   try {
     const payload = checkoutSchema.parse(req.body);
-    const userId = req.identity?.userId || payload.userId || "user-demo-001";
+    const userId = req.identity?.userId || payload.userId;
+
+    if (!userId) {
+      const err = new Error("userId is required: provide it in the request body or authenticate with a bearer token");
+      err.status = 400;
+      err.code = "MISSING_USER_ID";
+      return next(err);
+    }
+
     const order = await orderService.createOrderFromCart({
       ...payload,
       userId,
@@ -69,6 +64,14 @@ router.post("/checkout", async (req, res, next) => {
 router.get("/:orderId", async (req, res, next) => {
   try {
     const order = await orderService.getOrder(req.params.orderId);
+    // When authenticated, hide orders that belong to a different user (return 404, not 403,
+    // to avoid leaking the existence of other users' orders)
+    if (req.identity && order.userId !== req.identity.userId) {
+      const err = new Error(`Order not found: ${req.params.orderId}`);
+      err.status = 404;
+      err.code = "ORDER_NOT_FOUND";
+      return next(err);
+    }
     return res.json({ data: order });
   } catch (err) {
     return next(err);
@@ -86,7 +89,9 @@ router.get("/", async (req, res, next) => {
       throw err;
     }
 
-    const orders = await orderService.listOrdersByUser(userId);
+    const skip = Math.max(0, Number(req.query.skip || 0));
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit || 20)));
+    const orders = await orderService.listOrdersByUser(userId, { skip, limit });
     return res.json({ data: orders });
   } catch (err) {
     return next(err);
@@ -96,7 +101,12 @@ router.get("/", async (req, res, next) => {
 router.post("/:orderId/cancel", async (req, res, next) => {
   try {
     const payload = cancelOrderSchema.parse(req.body || {});
-    const order = await orderService.cancelOrder(req.params.orderId, payload.reason);
+    // Pass the caller's identity so cancelOrder can enforce ownership inside its transaction
+    const order = await orderService.cancelOrder(
+      req.params.orderId,
+      payload.reason,
+      req.identity?.userId || null,
+    );
     return res.json({ data: order });
   } catch (err) {
     return next(err);

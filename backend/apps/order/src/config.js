@@ -43,6 +43,12 @@ const config = {
     dlqQueue: process.env.FULFILLMENT_CONSUMER_DLQ_QUEUE || "ordering.fulfillment-events.dlq",
     reconnectIntervalMs: Number(process.env.FULFILLMENT_CONSUMER_RECONNECT_MS || 5000),
   },
+  cors: {
+    allowedOrigins: parseCsv(
+      process.env.ALLOWED_ORIGINS,
+      "http://localhost:8080,http://localhost:3000",
+    ),
+  },
 };
 
 module.exports = config;

@@ -1,15 +1,15 @@
-const config = require("../config");
+const config = require('../config');
 
-function unauthorizedError(message = "Unauthorized") {
+function unauthorizedError(message = 'Unauthorized') {
   const err = new Error(message);
   err.status = 401;
-  err.code = "UNAUTHORIZED";
+  err.code = 'UNAUTHORIZED';
   return err;
 }
 
 async function verifyAccessToken(token) {
   if (!token) {
-    throw unauthorizedError("Missing access token");
+    throw unauthorizedError('Missing access token');
   }
 
   const response = await fetch(`${config.iam.baseUrl}/api/auth/me`, {
@@ -20,15 +20,15 @@ async function verifyAccessToken(token) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const err = new Error(payload?.error || payload?.message || "Token verification failed");
+    const err = new Error(payload?.error || payload?.message || 'Token verification failed');
     err.status = response.status === 403 ? 403 : 401;
-    err.code = response.status === 403 ? "FORBIDDEN" : "UNAUTHORIZED";
+    err.code = response.status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED';
     throw err;
   }
 
   const user = payload?.data || null;
   if (!user || !user.id) {
-    throw unauthorizedError("Invalid identity response from IAM service");
+    throw unauthorizedError('Invalid identity response from IAM service');
   }
 
   return {
