@@ -25,6 +25,21 @@ const updateItemSchema = z.object({
   quantity: z.number().int().min(0),
 });
 
+const listCartsQuerySchema = z.object({
+  userId: z.string().min(1),
+});
+
+router.get("/", async (req, res, next) => {
+  try {
+    const query = listCartsQuerySchema.parse(req.query);
+    const userId = req.identity?.userId || query.userId;
+    const cart = await cartService.getActiveCartByUser(userId);
+    return res.json({ data: cart || null });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.post("/", async (req, res, next) => {
   try {
     const payload = createCartSchema.parse(req.body);
@@ -66,6 +81,15 @@ router.patch("/:cartId/items/:productId", async (req, res, next) => {
       req.params.productId,
       payload.quantity,
     );
+    return res.json({ data: cart });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.delete("/:cartId/items/:productId", async (req, res, next) => {
+  try {
+    const cart = await cartService.removeCartItem(req.params.cartId, req.params.productId);
     return res.json({ data: cart });
   } catch (err) {
     return next(err);

@@ -34,6 +34,16 @@ const config = {
     dlqExchange: process.env.NOTIFICATION_CONSUMER_DLQ_EXCHANGE || 'cnweb.events.dlq',
     dlqQueue: process.env.NOTIFICATION_CONSUMER_DLQ_QUEUE || 'notification.events.dlq',
   },
+  iam: {
+    baseUrl: process.env.IAM_BASE_URL || 'http://localhost:3001',
+    authRequired: process.env.NOTIFICATION_AUTH_REQUIRED === 'true',
+  },
+  cors: {
+    allowedOrigins: parseCsv(
+      process.env.ALLOWED_ORIGINS,
+      'http://localhost:8080,http://localhost:3000',
+    ),
+  },
 };
 
 module.exports = config;

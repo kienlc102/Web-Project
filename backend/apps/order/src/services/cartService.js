@@ -34,6 +34,10 @@ async function getCart(cartId) {
   return cart;
 }
 
+async function getActiveCartByUser(userId) {
+  return store.getActiveCartByUser(userId);
+}
+
 async function addCartItem(cartId, itemInput) {
   const cart = await getCart(cartId);
   assertActiveCart(cart);
@@ -63,6 +67,10 @@ async function addCartItem(cartId, itemInput) {
   return next;
 }
 
+async function removeCartItem(cartId, productId) {
+  return updateCartItem(cartId, productId, 0);
+}
+
 async function updateCartItem(cartId, productId, quantity) {
   const cart = await getCart(cartId);
   assertActiveCart(cart);
@@ -88,7 +96,9 @@ async function updateCartItem(cartId, productId, quantity) {
 module.exports = {
   createCart,
   getCart,
+  getActiveCartByUser,
   addCartItem,
   updateCartItem,
+  removeCartItem,
   recalculateTotals,
 };

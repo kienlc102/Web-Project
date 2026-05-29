@@ -280,26 +280,62 @@ async function updateOrder(orderId, updater, client) {
   return getOrder(orderId, db);
 }
 
-async function listOrdersByUser(userId, client) {
+async function listOrdersByUser(userId, options = {}, client) {
   const db = client || getPool();
-  const result = await db.query(
+  const limit = Math.min(50, Math.max(1, Number(options.limit || 20)));
+  const skip = Math.max(0, Number(options.skip || 0));
+
+  // Fetch one page of orders for the user
+  const ordersResult = await db.query(
     `
-      SELECT id
+      SELECT
+        id, user_id, cart_id, status, shipping_address, payment_method,
+        currency, totals, history, cancelled_at, created_at, updated_at
       FROM ordering.orders
       WHERE user_id = $1
       ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3
     `,
-    [userId],
+    [userId, limit, skip],
   );
 
-  const orders = [];
-  for (const row of result.rows) {
-    const order = await getOrder(row.id, db);
-    if (order) {
-      orders.push(order);
-    }
+  if (!ordersResult.rowCount) {
+    return [];
   }
-  return orders;
+
+  const orderIds = ordersResult.rows.map((r) => r.id);
+
+  // Fetch all items for those orders in one query
+  const itemsResult = await db.query(
+    `
+      SELECT order_id, product_id, seller_id, name, quantity, unit_price, line_total
+      FROM ordering.order_items
+      WHERE order_id = ANY($1::uuid[])
+      ORDER BY name ASC
+    `,
+    [orderIds],
+  );
+
+  // Group items by order_id
+  const itemsByOrder = {};
+  for (const row of itemsResult.rows) {
+    const orderId = row.order_id;
+    if (!itemsByOrder[orderId]) {
+      itemsByOrder[orderId] = [];
+    }
+    itemsByOrder[orderId].push({
+      productId: row.product_id,
+      sellerId: row.seller_id,
+      name: row.name,
+      quantity: Number(row.quantity),
+      unitPrice: Number(row.unit_price),
+      lineTotal: Number(row.line_total),
+    });
+  }
+
+  return ordersResult.rows.map((row) =>
+    mapOrderRow(row, itemsByOrder[row.id] || []),
+  );
 }
 
 async function pushOutboxEvent(event, client) {
@@ -429,10 +465,52 @@ async function markEventProcessed(consumerName, eventId, client) {
   );
 }
 
+async function getActiveCartByUser(userId, client) {
+  const db = client || getPool();
+
+  const cartResult = await db.query(
+    `
+      SELECT id, user_id, currency, status, totals, created_at, updated_at, checked_out_at
+      FROM ordering.carts
+      WHERE user_id = $1 AND status = 'ACTIVE'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [userId],
+  );
+
+  if (!cartResult.rowCount) {
+    return null;
+  }
+
+  const cartId = cartResult.rows[0].id;
+
+  const itemsResult = await db.query(
+    `
+      SELECT product_id, seller_id, name, quantity, unit_price
+      FROM ordering.cart_items
+      WHERE cart_id = $1
+      ORDER BY name ASC
+    `,
+    [cartId],
+  );
+
+  const items = itemsResult.rows.map((row) => ({
+    productId: row.product_id,
+    sellerId: row.seller_id,
+    name: row.name,
+    quantity: Number(row.quantity),
+    unitPrice: Number(row.unit_price),
+  }));
+
+  return mapCartRow(cartResult.rows[0], items);
+}
+
 module.exports = {
   withTransaction,
   createCart,
   getCart,
+  getActiveCartByUser,
   replaceCartItems,
   markCartCheckedOut,
   saveOrder,

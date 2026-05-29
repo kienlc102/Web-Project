@@ -35,6 +35,14 @@ async function createOrderFromCart({ cartId, userId, shippingAddress, paymentMet
       throw err;
     }
 
+    // Verify cart belongs to the requesting user
+    if (cart.userId !== userId) {
+      const err = new Error("Cart does not belong to this user");
+      err.status = 403;
+      err.code = "CART_FORBIDDEN";
+      throw err;
+    }
+
     if (!cart.items.length) {
       const err = new Error("Cannot place order from empty cart");
       err.status = 400;
@@ -109,13 +117,21 @@ async function getOrder(orderId, client) {
   return order;
 }
 
-async function listOrdersByUser(userId) {
-  return store.listOrdersByUser(userId);
+async function listOrdersByUser(userId, options) {
+  return store.listOrdersByUser(userId, options);
 }
 
-async function cancelOrder(orderId, reason = "Cancelled by user") {
+async function cancelOrder(orderId, reason = "Cancelled by user", requesterUserId = null) {
   return store.withTransaction(async (client) => {
     const order = await getOrder(orderId, client);
+
+    // Enforce ownership when a requester identity is provided
+    if (requesterUserId && order.userId !== requesterUserId) {
+      const notFound = new Error(`Order not found: ${orderId}`);
+      notFound.status = 404;
+      notFound.code = "ORDER_NOT_FOUND";
+      throw notFound;
+    }
 
     assertCanTransition(order.status, ORDER_STATUS.CANCELLED);
 

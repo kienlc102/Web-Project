@@ -101,6 +101,7 @@ services:
       RABBITMQ_EXCHANGE: cnweb.events
       IAM_BASE_URL: http://iam-service:3001
       ORDERING_AUTH_REQUIRED: "false"
+      ALLOWED_ORIGINS: http://localhost:8080,http://localhost:3000
     ports:
       - "8083:8083"
     depends_on:
@@ -146,6 +147,9 @@ services:
       DB_NAME: microservices_db
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672
       RABBITMQ_EXCHANGE: cnweb.events
+      IAM_BASE_URL: http://iam-service:3001
+      NOTIFICATION_AUTH_REQUIRED: "false"
+      ALLOWED_ORIGINS: http://localhost:8080,http://localhost:3000
     ports:
       - "8086:8086"
     depends_on:
