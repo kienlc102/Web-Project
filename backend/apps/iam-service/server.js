@@ -3,6 +3,12 @@ const mysql = require('mysql2/promise');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
+const { setPool: setAuditPool, logAudit, getClientIp, getUserAgent } = require('./audit');
+const { validateUsername, validatePassword, validateRefreshToken, validateRequiredFields } = require('./validation');
+
 const app = express();
 
 // ============================================
@@ -50,14 +56,8 @@ app.get('/health', async (req, res) => {
     }
 });
 
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
-const { setPool: setAuditPool, logAudit, getClientIp, getUserAgent } = require('./audit');
-const { validateUsername, validatePassword, validateRefreshToken, validateRequiredFields } = require('./validation');
-
 // ============================================
-// FIX 1: JWT Secret Validation
+// JWT Secret Validation
 // ============================================
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
@@ -74,23 +74,7 @@ if (!JWT_REFRESH_SECRET || JWT_REFRESH_SECRET.length < 32) {
 }
 
 // ============================================
-// FIX 2: Password Validation Function
-// ============================================
-function validatePassword(password) {
-    if (!password || password.length < 8) {
-        return { valid: false, error: 'Mật khẩu phải có ít nhất 8 ký tự' };
-    }
-    if (!/[a-zA-Z]/.test(password)) {
-        return { valid: false, error: 'Mật khẩu phải có ít nhất 1 chữ cái' };
-    }
-    if (!/[0-9]/.test(password)) {
-        return { valid: false, error: 'Mật khẩu phải có ít nhất 1 chữ số' };
-    }
-    return { valid: true };
-}
-
-// ============================================
-// FIX 3: Rate Limiting
+// Rate Limiting
 // ============================================
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 phút

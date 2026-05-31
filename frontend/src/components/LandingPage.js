@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import CatalogList from './catalog/CatalogList';
+import UserMenu from './UserMenu';
 import { addProductToCart, formatVnd, getOrCreateCart } from '../utils/orderingApi';
 
 // Dữ liệu mẫu cho sản phẩm
@@ -90,6 +91,7 @@ const LandingPage = () => {
         .nav-links { display: flex; gap: 30px; }
         .nav-links a { font-weight: 500; color: #4b5563; transition: color 0.3s; }
         .nav-links a:hover { color: #4f46e5; }
+        .header-actions { display: flex; gap: 16px; align-items: center; }
         .cart-btn { background: none; border: none; font-size: 20px; cursor: pointer; position: relative; }
         .cart-badge { position: absolute; top: -8px; right: -10px; background-color: #ef4444; color: white; font-size: 12px; font-weight: bold; padding: 2px 6px; border-radius: 50%; }
         .status-message { max-width: 1200px; margin: 14px auto 0; padding: 10px 14px; border-radius: 8px; background-color: #ecfeff; color: #0f766e; border: 1px solid #99f6e4; }
@@ -178,6 +180,7 @@ const LandingPage = () => {
               <a href="#about">Về chúng tôi</a>
             </nav>
             <div className="header-actions">
+              <UserMenu />
               <button className="cart-btn" onClick={handleOpenCart}>
                 🛒 <span className="cart-badge">{cartCount}</span>
               </button>
