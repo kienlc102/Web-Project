@@ -17,7 +17,7 @@ export default function Checkout() {
   const items = cart?.items || [];
 
   useEffect(() => {
-    refreshCart().catch(() => {});
+    refreshCart().catch(() => { });
   }, [refreshCart]);
 
   const total = useMemo(
