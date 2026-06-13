@@ -87,6 +87,15 @@ async function changePassword({ currentPassword, newPassword, confirmPassword })
   return parseApiResponse(response, 'Không thể đổi mật khẩu');
 }
 
+async function changeEmail({ newEmail, password }) {
+  const response = await fetch(`${AUTH_BASE_URL}/change-email`, {
+    method: 'PATCH',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ newEmail, password }),
+  });
+  return parseApiResponse(response, 'Không thể đổi email');
+}
+
 function logout() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -194,6 +203,7 @@ export {
   DEMO_SELLER_ID,
   DEMO_USER_ID,
   cancelOrder,
+  changeEmail,
   changePassword,
   getActiveUserId,
   getOrder,

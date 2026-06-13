@@ -713,7 +713,7 @@ const authorizeRole = (requiredRole) => {
 app.get('/me', authenticateToken, async (req, res) => {
     try {
         // req.user.userId được giải mã từ Token bởi middleware
-        const [users] = await pool.query('SELECT id, username, role FROM users WHERE id = ?', [req.user.userId]);
+        const [users] = await pool.query('SELECT id, username, email, role FROM users WHERE id = ?', [req.user.userId]);
         
         if (users.length === 0) {
             await logAudit({
@@ -866,6 +866,132 @@ app.patch('/change-password', authenticateToken, async (req, res) => {
             userId: req.user.userId,
             eventType: 'AUTH',
             eventAction: 'PASSWORD_CHANGE_ERROR',
+            ipAddress: getClientIp(req),
+            userAgent: getUserAgent(req),
+            requestData: { error: error.message },
+            responseStatus: 500
+        });
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================
+// FIX: Change Email Endpoint
+// ============================================
+app.patch('/change-email', authenticateToken, async (req, res) => {
+    const { newEmail, password } = req.body;
+
+    const fieldsCheck = validateRequiredFields(req.body, ['newEmail', 'password']);
+    if (!fieldsCheck.valid) {
+        await logAudit({
+            userId: req.user.userId,
+            eventType: 'AUTH',
+            eventAction: 'EMAIL_CHANGE_FAILED',
+            ipAddress: getClientIp(req),
+            userAgent: getUserAgent(req),
+            requestData: { reason: fieldsCheck.error },
+            responseStatus: 400
+        });
+        return res.status(400).json({ error: fieldsCheck.error });
+    }
+
+    const emailCheck = validateEmail(newEmail);
+    if (!emailCheck.valid) {
+        await logAudit({
+            userId: req.user.userId,
+            eventType: 'AUTH',
+            eventAction: 'EMAIL_CHANGE_FAILED',
+            ipAddress: getClientIp(req),
+            userAgent: getUserAgent(req),
+            requestData: { newEmail, reason: emailCheck.error },
+            responseStatus: 400
+        });
+        return res.status(400).json({ error: emailCheck.error });
+    }
+
+    try {
+        const [users] = await pool.query('SELECT id, username, email, password_hash FROM users WHERE id = ?', [req.user.userId]);
+        if (users.length === 0) {
+            await logAudit({
+                userId: req.user.userId,
+                eventType: 'AUTH',
+                eventAction: 'EMAIL_CHANGE_FAILED',
+                ipAddress: getClientIp(req),
+                userAgent: getUserAgent(req),
+                requestData: { reason: 'User not found' },
+                responseStatus: 404
+            });
+            return res.status(404).json({ error: 'Không tìm thấy thông tin người dùng' });
+        }
+
+        const user = users[0];
+
+        // Check if new email is same as current
+        if (emailCheck.sanitized === user.email) {
+            await logAudit({
+                userId: req.user.userId,
+                eventType: 'AUTH',
+                eventAction: 'EMAIL_CHANGE_FAILED',
+                ipAddress: getClientIp(req),
+                userAgent: getUserAgent(req),
+                requestData: { username: user.username, reason: 'New email same as current' },
+                responseStatus: 400
+            });
+            return res.status(400).json({ error: 'Email mới phải khác email hiện tại' });
+        }
+
+        // Verify password
+        const isValidPassword = await bcrypt.compare(password, user.password_hash);
+        if (!isValidPassword) {
+            await logAudit({
+                userId: req.user.userId,
+                eventType: 'AUTH',
+                eventAction: 'EMAIL_CHANGE_FAILED',
+                ipAddress: getClientIp(req),
+                userAgent: getUserAgent(req),
+                requestData: { username: user.username, reason: 'Invalid password' },
+                responseStatus: 401
+            });
+            return res.status(401).json({ error: 'Mật khẩu không đúng' });
+        }
+
+        // Check if email already exists
+        const [existingUsers] = await pool.query('SELECT id FROM users WHERE email = ? AND id != ?', [emailCheck.sanitized, req.user.userId]);
+        if (existingUsers.length > 0) {
+            await logAudit({
+                userId: req.user.userId,
+                eventType: 'AUTH',
+                eventAction: 'EMAIL_CHANGE_FAILED',
+                ipAddress: getClientIp(req),
+                userAgent: getUserAgent(req),
+                requestData: { username: user.username, newEmail: emailCheck.sanitized, reason: 'Email already exists' },
+                responseStatus: 400
+            });
+            return res.status(400).json({ error: 'Email này đã được sử dụng' });
+        }
+
+        // Update email
+        await pool.query(
+            'UPDATE users SET email = ? WHERE id = ?',
+            [emailCheck.sanitized, req.user.userId]
+        );
+
+        await logAudit({
+            userId: req.user.userId,
+            eventType: 'AUTH',
+            eventAction: 'EMAIL_CHANGE_SUCCESS',
+            ipAddress: getClientIp(req),
+            userAgent: getUserAgent(req),
+            requestData: { username: user.username, oldEmail: user.email, newEmail: emailCheck.sanitized },
+            responseStatus: 200
+        });
+
+        res.status(200).json({ message: 'Đổi email thành công' });
+    } catch (error) {
+        await logAudit({
+            userId: req.user.userId,
+            eventType: 'AUTH',
+            eventAction: 'EMAIL_CHANGE_ERROR',
             ipAddress: getClientIp(req),
             userAgent: getUserAgent(req),
             requestData: { error: error.message },

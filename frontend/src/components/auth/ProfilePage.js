@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageShell from '../shared/PageShell';
 import ChangePasswordForm from './ChangePasswordForm';
+import ChangeEmailForm from './ChangeEmailForm';
 import { useAuth } from './AuthProvider';
 
 const ProfilePage = () => {
@@ -22,11 +23,18 @@ const ProfilePage = () => {
       <section className="ops-card ops-stack">
         <h2>Thông tin tài khoản</h2>
         <p><strong>Tên đăng nhập:</strong> {user?.username || 'Chưa đăng nhập'}</p>
+        <p><strong>Email:</strong> {user?.email || 'Chưa có'}</p>
         <p><strong>Vai trò:</strong> {user?.role || 'Chưa có'}</p>
 
         <div className="ops-actions">
           <button className="ops-button danger" onClick={handleLogout}>Đăng xuất</button>
         </div>
+
+        <div className="ops-divider" />
+
+        <h2>Đổi email</h2>
+        <p className="ops-muted">Cập nhật địa chỉ email của tài khoản.</p>
+        <ChangeEmailForm />
 
         <div className="ops-divider" />
 

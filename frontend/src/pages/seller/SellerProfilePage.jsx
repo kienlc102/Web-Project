@@ -1,5 +1,6 @@
 import React from 'react';
 import ChangePasswordForm from '../../components/auth/ChangePasswordForm';
+import ChangeEmailForm from '../../components/auth/ChangeEmailForm';
 import { Card } from '../../components/shared/designSystem';
 import { useAuth } from '../../components/auth/AuthProvider';
 
@@ -18,6 +19,12 @@ export default function SellerProfilePage() {
         <div><strong>Tên đăng nhập:</strong> {auth.user?.username}</div>
         <div><strong>Email:</strong> {auth.user?.email || 'Chưa có'}</div>
         <div><strong>Vai trò:</strong> {auth.role}</div>
+      </Card>
+
+      <Card className="ops-stack">
+        <h2>Đổi email</h2>
+        <p className="ops-muted">Cập nhật địa chỉ email của tài khoản người bán.</p>
+        <ChangeEmailForm />
       </Card>
 
       <Card className="ops-stack">
