@@ -47,11 +47,11 @@ async function parseApiResponse(response, fallbackMessage) {
   return Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
 }
 
-async function register(username, password, role = 'CUSTOMER') {
+async function register(username, email, password, role = 'CUSTOMER') {
   const response = await fetch(`${AUTH_BASE_URL}/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, role }),
+    body: JSON.stringify({ username, email, password, role }),
   });
   return parseApiResponse(response, 'Không thể đăng ký tài khoản');
 }

@@ -17,11 +17,13 @@ USE iam;
 CREATE TABLE IF NOT EXISTS users (
     id CHAR(36) PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     role VARCHAR(20) DEFAULT 'CUSTOMER',
     approval_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     failed_login_attempts INT DEFAULT 0,
-    locked_until DATETIME NULL
+    locked_until DATETIME NULL,
+    INDEX idx_users_email (email)
 );
 
 CREATE TABLE IF NOT EXISTS roles (
@@ -63,6 +65,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 -- Khởi tạo tài khoản Admin mặc định
 -- Username: admin
+-- Email: admin@admin.local
 -- Password: admin123
-INSERT IGNORE INTO users (id, username, password_hash, role, approval_status) 
-VALUES ('a839435b-dba6-4a3a-a4c2-3dec7700cbc1', 'admin', '$2a$10$CHizdiKafqYEnIy9.871Je21H61T5eTCbU3ZBD1W8ReSkKES44qAy', 'ADMIN', 'ACTIVE');
+INSERT IGNORE INTO users (id, username, email, password_hash, role, approval_status) 
+VALUES ('a839435b-dba6-4a3a-a4c2-3dec7700cbc1', 'admin', 'admin@admin.local', '$2a$10$CHizdiKafqYEnIy9.871Je21H61T5eTCbU3ZBD1W8ReSkKES44qAy', 'ADMIN', 'ACTIVE');

@@ -38,6 +38,39 @@ function validateUsername(username) {
 }
 
 /**
+ * Validate email
+ * Rules:
+ * - Valid email format
+ * - Length: 5-255 characters
+ */
+function validateEmail(email) {
+    if (!email || typeof email !== 'string') {
+        return { valid: false, error: 'Email là bắt buộc' };
+    }
+
+    const trimmed = email.trim().toLowerCase();
+
+    if (trimmed.length < 5) {
+        return { valid: false, error: 'Email phải có ít nhất 5 ký tự' };
+    }
+
+    if (trimmed.length > 255) {
+        return { valid: false, error: 'Email không được vượt quá 255 ký tự' };
+    }
+
+    // RFC 5322 compliant email regex (simplified)
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(trimmed)) {
+        return { 
+            valid: false, 
+            error: 'Email không đúng định dạng' 
+        };
+    }
+
+    return { valid: true, sanitized: trimmed };
+}
+
+/**
  * Validate password
  * Rules:
  * - Length: 8-128 characters
@@ -130,6 +163,7 @@ function validateRequiredFields(body, requiredFields) {
 
 module.exports = {
     validateUsername,
+    validateEmail,
     validatePassword,
     validateRefreshToken,
     sanitizeString,

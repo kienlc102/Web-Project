@@ -112,6 +112,33 @@ async function runMigrations() {
     }
     console.log('  ✅ Migration 002 completed\n');
     
+    // Migration 3: Add Email Field
+    console.log('Running migration: 003_add_email_field.sql');
+    const migration3 = fs.readFileSync(
+      path.join(__dirname, 'migrations', '003_add_email_field.sql'),
+      'utf8'
+    );
+    
+    const statements3 = migration3
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    
+    for (const statement of statements3) {
+      try {
+        await connection.query(statement);
+      } catch (err) {
+        if (err.code === 'ER_DUP_FIELDNAME') {
+          console.log('  ⚠️  Column already exists, skipping...');
+        } else if (err.code === 'ER_CANT_DROP_FIELD_OR_KEY') {
+          console.log('  ⚠️  Index already exists, skipping...');
+        } else {
+          throw err;
+        }
+      }
+    }
+    console.log('  ✅ Migration 003 completed\n');
+    
     console.log('✅ All migrations completed successfully!\n');
   } catch (error) {
     console.error('❌ Migration failed:', error.message);
@@ -132,7 +159,7 @@ async function verifySetup() {
     const columnNames = userColumns.map(col => col.Field);
     
     const requiredColumns = [
-      'id', 'username', 'password_hash', 'role',
+      'id', 'username', 'email', 'password_hash', 'role',
       'failed_login_attempts', 'locked_until'
     ];
     

@@ -5,7 +5,7 @@ import { register } from '../../utils/appApi';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ username: '', password: '', role: 'CUSTOMER' });
+  const [form, setForm] = useState({ username: '', email: '', password: '', role: 'CUSTOMER' });
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -16,7 +16,7 @@ const RegisterPage = () => {
     setError('');
     setMessage('');
     try {
-      const result = await register(form.username, form.password, form.role);
+      const result = await register(form.username, form.email, form.password, form.role);
       setMessage(`Đã tạo tài khoản ${result.userId || ''} với vai trò ${result.role || form.role}. Hãy đăng nhập.`);
       setTimeout(() => navigate('/login'), 600);
     } catch (err) {
@@ -37,6 +37,10 @@ const RegisterPage = () => {
         <label className="ops-label">
           Tên đăng nhập
           <input className="ops-input" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} required />
+        </label>
+        <label className="ops-label">
+          Email
+          <input className="ops-input" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
         </label>
         <label className="ops-label">
           Mật khẩu

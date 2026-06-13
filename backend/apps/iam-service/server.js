@@ -4,7 +4,7 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const cors = require('cors');
 const { setPool: setAuditPool, logAudit, getClientIp, getUserAgent } = require('./audit');
-const { validateUsername, validateRefreshToken, validateRequiredFields } = require('./validation');
+const { validateUsername, validateEmail, validateRefreshToken, validateRequiredFields } = require('./validation');
 const app = express();
 
 // ============================================
@@ -82,16 +82,17 @@ async function ensureSeedUsers() {
     for (const seedUser of SEED_USERS) {
         const passwordHash = await bcrypt.hash(seedUser.password, 10);
         await pool.query(
-            `INSERT INTO users (id, username, password_hash, role, approval_status, failed_login_attempts, locked_until)
-             VALUES (?, ?, ?, ?, 'ACTIVE', 0, NULL)
+            `INSERT INTO users (id, username, email, password_hash, role, approval_status, failed_login_attempts, locked_until)
+             VALUES (?, ?, ?, ?, ?, 'ACTIVE', 0, NULL)
              ON DUPLICATE KEY UPDATE
                 username = VALUES(username),
+                email = VALUES(email),
                 password_hash = VALUES(password_hash),
                 role = VALUES(role),
                 approval_status = 'ACTIVE',
                 failed_login_attempts = 0,
                 locked_until = NULL`,
-            [seedUser.id, seedUser.username, passwordHash, seedUser.role]
+            [seedUser.id, seedUser.username, seedUser.email || `${seedUser.username}@admin.local`, passwordHash, seedUser.role]
         );
     }
 }
@@ -176,11 +177,11 @@ const registerLimiter = rateLimit({
 // 1. API Đăng ký (Nâng cấp Outbox Pattern)
 // -----------------------------------------
 app.post('/register', registerLimiter, async (req, res) => {
-    const { username, password } = req.body;
+    const { username, email, password } = req.body;
     const requestedRole = String(req.body.role || 'CUSTOMER').toUpperCase();
     
     // Validate required fields
-    const fieldsCheck = validateRequiredFields(req.body, ['username', 'password']);
+    const fieldsCheck = validateRequiredFields(req.body, ['username', 'email', 'password']);
     if (!fieldsCheck.valid) {
         await logAudit({
             eventType: 'AUTH',
@@ -219,6 +220,20 @@ app.post('/register', registerLimiter, async (req, res) => {
             responseStatus: 400
         });
         return res.status(400).json({ error: passwordCheck.error });
+    }
+
+    // Validate email
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+        await logAudit({
+            eventType: 'AUTH',
+            eventAction: 'REGISTER_FAILED',
+            ipAddress: getClientIp(req),
+            userAgent: getUserAgent(req),
+            requestData: { username: usernameCheck.sanitized, email, reason: emailCheck.error },
+            responseStatus: 400
+        });
+        return res.status(400).json({ error: emailCheck.error });
     }
 
     if (!ALLOWED_ACCOUNT_ROLES.has(requestedRole)) {
@@ -260,13 +275,13 @@ app.post('/register', registerLimiter, async (req, res) => {
 
         // 2. Lưu user vào DB
         await conn.query(
-            'INSERT INTO users (id, username, password_hash, role, approval_status) VALUES (?, ?, ?, ?, ?)', 
-            [userId, sanitizedUsername, hashedPassword, requestedRole, 'PENDING']
+            'INSERT INTO users (id, username, email, password_hash, role, approval_status) VALUES (?, ?, ?, ?, ?, ?)', 
+            [userId, sanitizedUsername, emailCheck.sanitized, hashedPassword, requestedRole, 'PENDING']
         );
 
         // 3. Tạo sự kiện và lưu vào bảng Outbox
         const eventId = uuidv4();
-        const payload = JSON.stringify({ userId, username: sanitizedUsername, role: requestedRole, approvalStatus: 'PENDING', action: 'UserRegisteredPendingApproval' });
+        const payload = JSON.stringify({ userId, username: sanitizedUsername, email: emailCheck.sanitized, role: requestedRole, approvalStatus: 'PENDING', action: 'UserRegisteredPendingApproval' });
         
         await conn.query(
             'INSERT INTO outbox_events (id, event_type, payload) VALUES (?, ?, ?)',
