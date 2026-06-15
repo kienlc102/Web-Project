@@ -1,4 +1,5 @@
 import { API_BASES } from './constants';
+import { apiClient } from '../services/apiClient';
 
 const AUTH_BASE_URL = API_BASES.auth;
 const ORDERING_BASE_URL = API_BASES.ordering;
@@ -70,12 +71,13 @@ async function login(username, password) {
 }
 
 async function getProfile() {
-  const response = await fetch(`${AUTH_BASE_URL}/me`, {
-    headers: authHeaders(),
-  });
-  const payload = await parseApiResponse(response, 'Không thể tải thông tin người dùng');
-  localStorage.setItem(USER_KEY, JSON.stringify(payload));
-  return payload;
+  try {
+    const payload = await apiClient.get(`${AUTH_BASE_URL}/me`);
+    localStorage.setItem(USER_KEY, JSON.stringify(payload));
+    return payload;
+  } catch (err) {
+    throw new Error(err.message || 'Không thể tải thông tin người dùng');
+  }
 }
 
 async function changePassword({ currentPassword, newPassword, confirmPassword }) {

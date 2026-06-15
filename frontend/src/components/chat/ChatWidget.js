@@ -22,184 +22,265 @@ const ChatWidget = () => {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    try {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } catch (error) {
+      console.error('Lỗi cuộn xuống tin nhắn:', error);
+    }
   }, [messages, isOpen]);
 
   useEffect(() => {
-    if (isAuthenticated && currentUser) return;
+    try {
+      if (isAuthenticated && currentUser) return;
 
-    setIsOpen(false);
-    setUsers([]);
-    setSelectedUser(null);
-    setMessages([]);
-    setIsConnected(false);
-    setInputValue('');
-    setIsLoadingUsers(false);
-    setLoadError('');
-    setHasLoaded(false);
-    ws.current?.close();
-    ws.current = null;
+      setIsOpen(false);
+      setUsers([]);
+      setSelectedUser(null);
+      setMessages([]);
+      setIsConnected(false);
+      setInputValue('');
+      setIsLoadingUsers(false);
+      setLoadError('');
+      setHasLoaded(false);
+      ws.current?.close();
+      ws.current = null;
+    } catch (error) {
+      console.error('Lỗi reset trạng thái chat:', error);
+    }
   }, [isAuthenticated, currentUser]);
 
   useEffect(() => {
-    if (!isOpen) {
-      setHasLoaded(false);
+    try {
+      if (!isOpen) {
+        setHasLoaded(false);
+      }
+    } catch (error) {
+      console.error('Lỗi đặt lại hasLoaded:', error);
     }
   }, [isOpen]);
 
   useEffect(() => {
-    function handleOpenChat(e) {
-      const { sellerId } = e.detail;
-      setIsOpen(true);
-      
-      setUsers((prev) => {
-        const exists = prev.find(u => String(u.id) === String(sellerId));
-        if (exists) {
-          setSelectedUser(exists);
-          return prev;
-        } else {
-          // Add a temporary user entry for the seller if not in the list
-          const newSeller = { id: sellerId, username: `Người bán (${String(sellerId).substring(0,6)})` };
-          setSelectedUser(newSeller);
-          return [newSeller, ...prev];
-        }
-      });
-    }
+    try {
+      function handleOpenChat(e) {
+        try {
+          const { sellerId } = e.detail;
+          setIsOpen(true);
 
-    window.addEventListener('openChatWithSeller', handleOpenChat);
-    return () => window.removeEventListener('openChatWithSeller', handleOpenChat);
+          setUsers((prev) => {
+            try {
+              const exists = prev.find(u => String(u.id) === String(sellerId));
+              if (exists) {
+                setSelectedUser(exists);
+                return prev;
+              } else {
+                // Add a temporary user entry for the seller if not in the list
+                const newSeller = { id: sellerId, username: `Người bán (${String(sellerId).substring(0, 6)})` };
+                setSelectedUser(newSeller);
+                return [newSeller, ...prev];
+              }
+            } catch (err) {
+              console.error('Lỗi cập nhật danh sách users khi mở chat:', err);
+              return prev;
+            }
+          });
+        } catch (error) {
+          console.error('Lỗi mở chat:', error);
+        }
+      }
+
+      window.addEventListener('openChatWithSeller', handleOpenChat);
+      return () => {
+        try {
+          window.removeEventListener('openChatWithSeller', handleOpenChat);
+        } catch (err) {
+          console.error('Lỗi xoá event listener openChatWithSeller:', err);
+        }
+      };
+    } catch (error) {
+      console.error('Lỗi useEffect openChatWithSeller:', error);
+    }
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated || !currentUser || !isOpen || users.length || hasLoaded || isLoadingUsers) return;
+    try {
+      if (!isAuthenticated || !currentUser || !isOpen || users.length || hasLoaded || isLoadingUsers) return;
 
-    setIsLoadingUsers(true);
-    setLoadError('');
-    
-    async function fetchUsers() {
-      try {
-        const res = await fetch(`${USERS_API_BASE_URL}/users`);
-        if (!res.ok) throw new Error('Chat users API unavailable');
-        const data = await res.json();
-        const normalized = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-        
-        let chattedUserIds = [];
+      setIsLoadingUsers(true);
+      setLoadError('');
+
+      async function fetchUsers() {
         try {
-          const chatUsersRes = await fetch(`${CHAT_API_BASE_URL}/api/v1/chat/users/${currentUser.id}`);
-          if (chatUsersRes.ok) {
-            chattedUserIds = await chatUsersRes.json();
-          }
-        } catch (err) {
-          console.error('Lỗi tải danh sách người đã chat:', err);
-        }
+          const res = await fetch(`${USERS_API_BASE_URL}/users`);
+          if (!res.ok) throw new Error('Chat users API unavailable');
+          const data = await res.json();
+          const normalized = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
 
-        const chattedUsers = normalized.filter(u => chattedUserIds.includes(String(u.id)) && String(u.id) !== String(currentUser.id));
-        setUsers(chattedUsers);
-        
-        if (chattedUsers.length > 0) {
-          setSelectedUser(chattedUsers[0]);
-        } else {
-          setLoadError('Chưa có đoạn chat nào.');
+          let chattedUserIds = [];
+          try {
+            const chatUsersRes = await fetch(`${CHAT_API_BASE_URL}/api/v1/chat/users/${currentUser.id}`);
+            if (chatUsersRes.ok) {
+              chattedUserIds = await chatUsersRes.json();
+            }
+          } catch (err) {
+            console.error('Lỗi tải danh sách người đã chat:', err);
+          }
+
+          const chattedUsers = normalized.filter(u => chattedUserIds.includes(String(u.id)) && String(u.id) !== String(currentUser.id));
+          setUsers(chattedUsers);
+
+          if (chattedUsers.length > 0) {
+            setSelectedUser(chattedUsers[0]);
+          } else {
+            setLoadError('Chưa có đoạn chat nào.');
+          }
+          setHasLoaded(true);
+        } catch (err) {
+          console.error('Lỗi tải users:', err);
+          setUsers([]);
+          setSelectedUser(null);
+          setLoadError('Chat tạm thời không khả dụng.');
+          setHasLoaded(true);
+        } finally {
+          setIsLoadingUsers(false);
         }
-        setHasLoaded(true);
-      } catch (err) {
-        console.error('Lỗi tải users:', err);
-        setUsers([]);
-        setSelectedUser(null);
-        setLoadError('Chat tạm thời không khả dụng.');
-        setHasLoaded(true);
-      } finally {
-        setIsLoadingUsers(false);
       }
+
+      fetchUsers();
+    } catch (error) {
+      console.error('Lỗi useEffect fetchUsers:', error);
     }
-    
-    fetchUsers();
   }, [isAuthenticated, isOpen, users.length, hasLoaded, isLoadingUsers, currentUser]);
 
   useEffect(() => {
-    if (!isAuthenticated || !currentUser || !selectedUser) return;
+    try {
+      if (!isAuthenticated || !currentUser || !selectedUser) return;
 
-    async function fetchHistory() {
-      try {
-        const response = await fetch(`${CHAT_API_BASE_URL}/api/v1/chat/history/${currentUser.id}/${selectedUser.id}`);
-        if (response.ok) {
-          const history = await response.json();
-          setMessages(Array.isArray(history) ? history : []);
+      async function fetchHistory() {
+        try {
+          const response = await fetch(`${CHAT_API_BASE_URL}/api/v1/chat/history/${currentUser.id}/${selectedUser.id}`);
+          if (response.ok) {
+            const history = await response.json();
+            setMessages(Array.isArray(history) ? history : []);
+          }
+        } catch (error) {
+          console.error('Lỗi tải lịch sử chat:', error);
         }
-      } catch (error) {
-        console.error('Lỗi tải lịch sử chat:', error);
       }
-    }
 
-    fetchHistory();
+      fetchHistory();
+    } catch (error) {
+      console.error('Lỗi useEffect fetchHistory:', error);
+    }
   }, [isAuthenticated, currentUser, selectedUser]);
 
   useEffect(() => {
-    if (!isAuthenticated || !currentUser) return undefined;
+    try {
+      if (!isAuthenticated || !currentUser) return undefined;
 
-    let mounted = true;
-    let reconnectTimeout;
+      let mounted = true;
+      let reconnectTimeout;
 
-    function connectWs() {
-      if (!mounted) return;
-      ws.current = new WebSocket(`${CHAT_WS_BASE_URL}/api/v1/chat/ws/${currentUser.id}`);
-
-      ws.current.onopen = () => {
-        if (mounted) setIsConnected(true);
-      };
-
-      ws.current.onmessage = (event) => {
+      function connectWs() {
         try {
-          const data = JSON.parse(event.data);
-          setMessages((prev) => [...prev, { ...data, timestamp: new Date().toISOString() }]);
+          if (!mounted) return;
+          ws.current = new WebSocket(`${CHAT_WS_BASE_URL}/api/v1/chat/ws/${currentUser.id}`);
+
+          ws.current.onopen = () => {
+            try {
+              if (mounted) setIsConnected(true);
+            } catch (err) {
+              console.error('Lỗi onopen WebSocket:', err);
+            }
+          };
+
+          ws.current.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              setMessages((prev) => {
+                try {
+                  return [...prev, { ...data, timestamp: new Date().toISOString() }];
+                } catch (err) {
+                  console.error('Lỗi thêm tin nhắn:', err);
+                  return prev;
+                }
+              });
+            } catch (error) {
+              console.error('Lỗi phân tích tin nhắn:', error);
+            }
+          };
+
+          ws.current.onclose = () => {
+            try {
+              if (mounted) {
+                setIsConnected(false);
+                reconnectTimeout = setTimeout(connectWs, 3000);
+              }
+            } catch (err) {
+              console.error('Lỗi onclose WebSocket:', err);
+            }
+          };
         } catch (error) {
-          console.error('Lỗi phân tích tin nhắn:', error);
+          console.error('Lỗi connectWs:', error);
         }
-      };
+      }
 
-      ws.current.onclose = () => {
-        if (mounted) {
-          setIsConnected(false);
-          reconnectTimeout = setTimeout(connectWs, 3000);
+      connectWs();
+
+      return () => {
+        try {
+          mounted = false;
+          clearTimeout(reconnectTimeout);
+          ws.current?.close();
+        } catch (err) {
+          console.error('Lỗi dọn dẹp WebSocket:', err);
         }
       };
+    } catch (error) {
+      console.error('Lỗi useEffect WebSocket:', error);
     }
-
-    connectWs();
-
-    return () => {
-      mounted = false;
-      clearTimeout(reconnectTimeout);
-      ws.current?.close();
-    };
-  }, [isAuthenticated, currentUser]);
+  }, [isAuthenticated, currentUser?.id]);
 
   function handleSendMessage(event) {
-    event.preventDefault();
-    if (!ws.current || !isConnected || !selectedUser || !currentUser || !inputValue.trim()) return;
+    try {
+      event.preventDefault();
+      if (!ws.current || !isConnected || !selectedUser || !currentUser || !inputValue.trim()) return;
 
-    const content = inputValue.trim();
-    ws.current.send(JSON.stringify({
-      receiver_id: String(selectedUser.id),
-      content,
-    }));
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        sender_id: currentUser.id,
-        receiver_id: selectedUser.id,
+      const content = inputValue.trim();
+      ws.current.send(JSON.stringify({
+        receiver_id: String(selectedUser.id),
         content,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-    setInputValue('');
+      }));
+
+      setMessages((prev) => {
+        try {
+          return [
+            ...prev,
+            {
+              sender_id: currentUser.id,
+              receiver_id: selectedUser.id,
+              content,
+              timestamp: new Date().toISOString(),
+            },
+          ];
+        } catch (err) {
+          console.error('Lỗi cập nhật tin nhắn local:', err);
+          return prev;
+        }
+      });
+      setInputValue('');
+    } catch (error) {
+      console.error('Lỗi xử lý handleSendMessage:', error);
+    }
   }
 
   function handleKeyDown(event) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      handleSendMessage(event);
+    try {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        handleSendMessage(event);
+      }
+    } catch (error) {
+      console.error('Lỗi xử lý handleKeyDown:', error);
     }
   }
 
@@ -262,7 +343,7 @@ const ChatWidget = () => {
         }
       `}</style>
       <div className="chat-widget">
-        
+
         {/* Sidebar */}
         <div className={`chat-sidebar ${isOpen ? 'open' : 'closed'}`}>
           <div className="chat-sidebar-header">
@@ -273,8 +354,8 @@ const ChatWidget = () => {
               <div className="chat-empty">Chưa có đoạn chat nào</div>
             )}
             {users.map((user) => (
-              <div 
-                key={user.id} 
+              <div
+                key={user.id}
                 className={`chat-contact-box ${selectedUser?.id === user.id ? 'active' : ''}`}
                 onClick={() => setSelectedUser(user)}
               >
