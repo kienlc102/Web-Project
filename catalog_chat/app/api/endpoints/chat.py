@@ -12,24 +12,33 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     try:
         while True:
             data = await websocket.receive_text()
-            msg_data = json.loads(data)
-            
-            message = MessageCreate(
-                sender_id=user_id,
-                receiver_id=msg_data["receiver_id"],
-                content=msg_data["content"]
-            )
-            
-            await save_message(message)
-            
-            # Create a response dict including sender_id so receiver knows who sent it
-            response_data = {
-                "sender_id": user_id,
-                "receiver_id": message.receiver_id,
-                "content": message.content
-            }
-            await manager.send_personal_message(json.dumps(response_data), message.receiver_id)
-    except WebSocketDisconnect:
+            try:
+                msg_data = json.loads(data)
+                
+                # Handle ping messages to keep connection alive
+                if msg_data.get("type") == "ping":
+                    continue
+                    
+                message = MessageCreate(
+                    sender_id=user_id,
+                    receiver_id=msg_data["receiver_id"],
+                    content=msg_data["content"]
+                )
+                
+                await save_message(message)
+                
+                # Create a response dict including sender_id so receiver knows who sent it
+                response_data = {
+                    "sender_id": user_id,
+                    "receiver_id": message.receiver_id,
+                    "content": message.content
+                }
+                await manager.send_personal_message(json.dumps(response_data), message.receiver_id)
+            except Exception as e:
+                print(f"Error processing message: {e}")
+    except Exception as e:
+        print(f"WebSocket disconnected for user {user_id}: {e}")
+    finally:
         manager.disconnect(websocket, user_id)
 
 @router.get("/history/{user1_id}/{user2_id}", response_model=List[MessageResponse])

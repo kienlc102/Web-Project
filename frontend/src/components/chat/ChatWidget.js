@@ -187,7 +187,15 @@ const ChatWidget = () => {
 
           ws.current.onopen = () => {
             try {
-              if (mounted) setIsConnected(true);
+              if (mounted) {
+                setIsConnected(true);
+                // Send ping every 15 seconds to prevent Nginx 60s timeout
+                ws.current.pingInterval = setInterval(() => {
+                  if (ws.current?.readyState === WebSocket.OPEN) {
+                    ws.current.send(JSON.stringify({ type: 'ping' }));
+                  }
+                }, 15000);
+              }
             } catch (err) {
               console.error('Lỗi onopen WebSocket:', err);
             }
@@ -213,6 +221,9 @@ const ChatWidget = () => {
             try {
               if (mounted) {
                 setIsConnected(false);
+                if (ws.current?.pingInterval) {
+                  clearInterval(ws.current.pingInterval);
+                }
                 reconnectTimeout = setTimeout(connectWs, 3000);
               }
             } catch (err) {
@@ -230,6 +241,9 @@ const ChatWidget = () => {
         try {
           mounted = false;
           clearTimeout(reconnectTimeout);
+          if (ws.current?.pingInterval) {
+            clearInterval(ws.current.pingInterval);
+          }
           ws.current?.close();
         } catch (err) {
           console.error('Lỗi dọn dẹp WebSocket:', err);

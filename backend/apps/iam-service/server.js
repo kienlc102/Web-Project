@@ -76,7 +76,7 @@ async function ensureIamSchema() {
     }
 
     await pool.query("UPDATE users SET approval_status = 'ACTIVE' WHERE approval_status IS NULL OR approval_status = ''");
-    
+
     // Create password_reset_tokens table
     await pool.query(`
         CREATE TABLE IF NOT EXISTS password_reset_tokens (
@@ -116,10 +116,10 @@ async function ensureSeedUsers() {
 app.get('/health', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT 1 + 1 AS solution');
-        res.status(200).json({ 
-            status: 'UP', 
+        res.status(200).json({
+            status: 'UP',
             service: 'IAM Service',
-            database: 'Connected to MySQL' 
+            database: 'Connected to MySQL'
         });
     } catch (error) {
         res.status(500).json({ status: 'DOWN', error: error.message });
@@ -212,7 +212,7 @@ const registerLimiter = rateLimit({
 app.post('/register', registerLimiter, async (req, res) => {
     const { username, email, password } = req.body;
     const requestedRole = String(req.body.role || 'CUSTOMER').toUpperCase();
-    
+
     // Validate required fields
     const fieldsCheck = validateRequiredFields(req.body, ['username', 'email', 'password']);
     if (!fieldsCheck.valid) {
@@ -226,7 +226,7 @@ app.post('/register', registerLimiter, async (req, res) => {
         });
         return res.status(400).json({ error: fieldsCheck.error });
     }
-    
+
     // Validate username
     const usernameCheck = validateUsername(username);
     if (!usernameCheck.valid) {
@@ -240,7 +240,7 @@ app.post('/register', registerLimiter, async (req, res) => {
         });
         return res.status(400).json({ error: usernameCheck.error });
     }
-    
+
     // Validate password
     const passwordCheck = validatePassword(password);
     if (!passwordCheck.valid) {
@@ -280,10 +280,10 @@ app.post('/register', registerLimiter, async (req, res) => {
         });
         return res.status(400).json({ error: 'Loai tai khoan khong hop le' });
     }
-    
+
     // Mở một kết nối riêng để chạy Transaction
     const conn = await pool.getConnection();
-    
+
     try {
         await conn.beginTransaction(); // Bắt đầu giao dịch
 
@@ -309,22 +309,32 @@ app.post('/register', registerLimiter, async (req, res) => {
         // 2. Lưu user vào DB
         const approvalStatus = requestedRole === 'CUSTOMER' ? 'ACTIVE' : 'PENDING';
         await conn.query(
+<<<<<<< Updated upstream
             'INSERT INTO users (id, username, email, password_hash, role, approval_status) VALUES (?, ?, ?, ?, ?, ?)', 
             [userId, sanitizedUsername, emailCheck.sanitized, hashedPassword, requestedRole, approvalStatus]
+=======
+            'INSERT INTO users (id, username, email, password_hash, role, approval_status) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, sanitizedUsername, emailCheck.sanitized, hashedPassword, requestedRole, 'PENDING']
+>>>>>>> Stashed changes
         );
 
         // 3. Tạo sự kiện và lưu vào bảng Outbox
         const eventId = uuidv4();
+<<<<<<< Updated upstream
         const eventAction = approvalStatus === 'ACTIVE' ? 'UserRegistered' : 'UserRegisteredPendingApproval';
         const payload = JSON.stringify({ userId, username: sanitizedUsername, email: emailCheck.sanitized, role: requestedRole, approvalStatus, action: eventAction });
         
+=======
+        const payload = JSON.stringify({ userId, username: sanitizedUsername, email: emailCheck.sanitized, role: requestedRole, approvalStatus: 'PENDING', action: 'UserRegisteredPendingApproval' });
+
+>>>>>>> Stashed changes
         await conn.query(
             'INSERT INTO outbox_events (id, event_type, payload) VALUES (?, ?, ?)',
             [eventId, 'UserCreated', payload]
         );
 
         await conn.commit(); // Chốt giao dịch thành công!
-        
+
         // Log successful registration
         await logAudit({
             userId,
@@ -335,11 +345,16 @@ app.post('/register', registerLimiter, async (req, res) => {
             requestData: { username: sanitizedUsername, role: requestedRole, approvalStatus },
             responseStatus: 201
         });
+<<<<<<< Updated upstream
         
         const successMessage = approvalStatus === 'ACTIVE' 
             ? 'Đăng ký thành công. Bạn có thể đăng nhập ngay.'
             : 'Đăng ký thành công. Tài khoản đang chờ admin duyệt.';
         res.status(201).json({ message: successMessage, userId, role: requestedRole, approvalStatus });
+=======
+
+        res.status(201).json({ message: 'Đăng ký thành công. Tài khoản đang chờ admin duyệt.', userId, role: requestedRole, approvalStatus: 'PENDING' });
+>>>>>>> Stashed changes
     } catch (error) {
         await conn.rollback(); // Có lỗi xảy ra, hủy bỏ mọi thay đổi
         await logAudit({
@@ -364,7 +379,7 @@ app.post('/register', registerLimiter, async (req, res) => {
 // app.post('/login', authLimiter, async (req, res) => {
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
-    
+
     // Validate required fields
     const fieldsCheck = validateRequiredFields(req.body, ['username', 'password']);
     if (!fieldsCheck.valid) {
@@ -378,7 +393,7 @@ app.post('/login', async (req, res) => {
         });
         return res.status(400).json({ error: fieldsCheck.error });
     }
-    
+
     // Validate username format
     const usernameCheck = validateUsername(username);
     if (!usernameCheck.valid) {
@@ -392,7 +407,7 @@ app.post('/login', async (req, res) => {
         });
         return res.status(400).json({ error: usernameCheck.error });
     }
-    
+
     try {
         const sanitizedUsername = usernameCheck.sanitized;
         // Tìm user trong DB (dùng sanitized username)
@@ -488,25 +503,25 @@ app.post('/login', async (req, res) => {
 
         // Tạo Access Token (Ngắn hạn - 15 phút) dùng để đi qua các trạm gác API
         const accessToken = jwt.sign(
-            { 
-                userId: user.id, 
+            {
+                userId: user.id,
                 username: user.username,
-                role: user.role 
-            }, 
-            JWT_SECRET, 
+                role: user.role
+            },
+            JWT_SECRET,
             { expiresIn: '15m' }
         );
 
         // 2. Tạo Refresh Token (Dài hạn - 7 ngày) dùng để xin cấp lại Access Token khi hết hạn
         const refreshToken = jwt.sign(
-            { userId: user.id }, 
-            JWT_REFRESH_SECRET, 
+            { userId: user.id },
+            JWT_REFRESH_SECRET,
             { expiresIn: '7d' }
         );
 
         // 3. Lưu Refresh Token vào Database để quản lý phiên đăng nhập
         await pool.query(
-            'INSERT INTO refresh_tokens (token, user_id) VALUES (?, ?)', 
+            'INSERT INTO refresh_tokens (token, user_id) VALUES (?, ?)',
             [refreshToken, user.id]
         );
 
@@ -521,8 +536,8 @@ app.post('/login', async (req, res) => {
             responseStatus: 200
         });
 
-        res.status(200).json({ 
-            message: 'Đăng nhập thành công!', 
+        res.status(200).json({
+            message: 'Đăng nhập thành công!',
             accessToken,
             refreshToken
         });
@@ -536,7 +551,7 @@ app.post('/login', async (req, res) => {
 // -----------------------------------------
 app.post('/refresh', async (req, res) => {
     const { refreshToken } = req.body;
-    
+
     // Validate required fields
     const fieldsCheck = validateRequiredFields(req.body, ['refreshToken']);
     if (!fieldsCheck.valid) {
@@ -550,7 +565,7 @@ app.post('/refresh', async (req, res) => {
         });
         return res.status(400).json({ error: fieldsCheck.error });
     }
-    
+
     // Validate refresh token format
     const tokenCheck = validateRefreshToken(refreshToken);
     if (!tokenCheck.valid) {
@@ -564,7 +579,7 @@ app.post('/refresh', async (req, res) => {
         });
         return res.status(400).json({ error: tokenCheck.error });
     }
-    
+
     const sanitizedToken = tokenCheck.sanitized;
 
     try {
@@ -612,8 +627,8 @@ app.post('/refresh', async (req, res) => {
             }
 
             const newAccessToken = jwt.sign(
-                { userId: payload.userId, username: users[0].username, role: users[0].role }, 
-                JWT_SECRET, 
+                { userId: payload.userId, username: users[0].username, role: users[0].role },
+                JWT_SECRET,
                 { expiresIn: '15m' }
             );
 
@@ -647,7 +662,7 @@ app.post('/refresh', async (req, res) => {
 // -----------------------------------------
 app.delete('/logout', async (req, res) => {
     const { refreshToken } = req.body;
-    
+
     // Validate required fields
     const fieldsCheck = validateRequiredFields(req.body, ['refreshToken']);
     if (!fieldsCheck.valid) {
@@ -661,7 +676,7 @@ app.delete('/logout', async (req, res) => {
         });
         return res.status(400).json({ error: fieldsCheck.error });
     }
-    
+
     // Validate refresh token format
     const tokenCheck = validateRefreshToken(refreshToken);
     if (!tokenCheck.valid) {
@@ -675,17 +690,17 @@ app.delete('/logout', async (req, res) => {
         });
         return res.status(400).json({ error: tokenCheck.error });
     }
-    
+
     const sanitizedToken = tokenCheck.sanitized;
-    
+
     try {
         // Get user info before deleting token
         const [tokenRows] = await pool.query('SELECT user_id FROM refresh_tokens WHERE token = ?', [sanitizedToken]);
         const userId = tokenRows.length > 0 ? tokenRows[0].user_id : null;
-        
+
         // Xóa token khỏi Database
         await pool.query('DELETE FROM refresh_tokens WHERE token = ?', [sanitizedToken]);
-        
+
         await logAudit({
             userId,
             eventType: 'AUTH',
@@ -695,7 +710,7 @@ app.delete('/logout', async (req, res) => {
             requestData: {},
             responseStatus: 204
         });
-        
+
         res.status(204).send(); // 204 No Content: Xóa thành công
     } catch (error) {
         await logAudit({
@@ -737,8 +752,8 @@ const authorizeRole = (requiredRole) => {
     return (req, res, next) => {
         // req.user lấy từ middleware authenticateToken chạy trước đó
         if (!req.user || req.user.role !== requiredRole) {
-            return res.status(403).json({ 
-                error: `Từ chối truy cập: Tính năng này yêu cầu quyền ${requiredRole}` 
+            return res.status(403).json({
+                error: `Từ chối truy cập: Tính năng này yêu cầu quyền ${requiredRole}`
             });
         }
         next(); // Nếu đúng role thì cho đi tiếp
@@ -752,7 +767,7 @@ app.get('/me', authenticateToken, async (req, res) => {
     try {
         // req.user.userId được giải mã từ Token bởi middleware
         const [users] = await pool.query('SELECT id, username, email, role FROM users WHERE id = ?', [req.user.userId]);
-        
+
         if (users.length === 0) {
             await logAudit({
                 userId: req.user.userId,
@@ -776,9 +791,9 @@ app.get('/me', authenticateToken, async (req, res) => {
             responseStatus: 200
         });
 
-        res.status(200).json({ 
-            message: 'Truy cập dữ liệu bảo mật thành công!', 
-            data: users[0] 
+        res.status(200).json({
+            message: 'Truy cập dữ liệu bảo mật thành công!',
+            data: users[0]
         });
     } catch (error) {
         await logAudit({
@@ -940,7 +955,7 @@ app.post('/forgot-password', async (req, res) => {
 
     try {
         const [users] = await pool.query('SELECT id, username, email FROM users WHERE email = ?', [email]);
-        
+
         // Always return success to prevent email enumeration
         if (users.length === 0) {
             await logAudit({
@@ -956,7 +971,7 @@ app.post('/forgot-password', async (req, res) => {
         }
 
         const user = users[0];
-        
+
         // Generate 6-digit random code
         const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
         const tokenId = uuidv4();
@@ -1026,7 +1041,7 @@ app.post('/reset-password', async (req, res) => {
 
     try {
         const [users] = await pool.query('SELECT id, username, email FROM users WHERE email = ?', [email]);
-        
+
         if (users.length === 0) {
             await logAudit({
                 userId: null,
@@ -1474,8 +1489,8 @@ app.get('/admin/dashboard', authenticateToken, authorizeRole('ADMIN'), async (re
         requestData: { username: req.user.username },
         responseStatus: 200
     });
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
         message: 'Xin chào sếp! Đây là khu vực quản trị tối cao.',
         adminInfo: req.user
     });
@@ -1490,7 +1505,7 @@ async function startOutboxProcessor() {
         const rabbitUrl = process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbitmq:5672';
         const conn = await amqp.connect(rabbitUrl);
         const channel = await conn.createChannel();
-        
+
         const exchangeName = process.env.RABBITMQ_EXCHANGE || 'cnweb.events';
         await channel.assertExchange(exchangeName, 'topic', { durable: true });
 
@@ -1500,7 +1515,7 @@ async function startOutboxProcessor() {
         setInterval(async () => {
             try { // <--- THÊM DÒNG NÀY
                 const [events] = await pool.query('SELECT * FROM outbox_events ORDER BY created_at ASC LIMIT 10');
-                
+
                 for (const event of events) {
                     // Bắn sự kiện lên RabbitMQ
                     const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
@@ -1510,7 +1525,7 @@ async function startOutboxProcessor() {
                         payload: payload,
                         timestamp: new Date().toISOString()
                     };
-                    
+
                     // Routing key format: service.entity.action (e.g., iam.user.created)
                     let routingKey;
                     if (event.event_type === 'UserCreated') {
@@ -1523,7 +1538,7 @@ async function startOutboxProcessor() {
                         routingKey = 'iam.user.updated';
                     }
                     channel.publish(exchangeName, routingKey, Buffer.from(JSON.stringify(message)));
-                    
+
                     // Gửi thành công thì xóa khỏi Outbox
                     await pool.query('DELETE FROM outbox_events WHERE id = ?', [event.id]);
                     console.log(`📤 Đã gửi sự kiện: ${event.event_type}`);
