@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xác nhận đơn hàng</title>
+</head>
+<body style="margin: 0; padding: 20px; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+  <div style="max-width: 700px; margin: 0 auto; background-color: #ffffff; padding: 30px; border: 1px solid #ddd;">
+    <h2 style="margin: 0 0 20px 0; font-size: 20px; color: #333;">Xác nhận đơn hàng</h2>
+
+    <p style="margin: 0 0 15px 0; color: #333;">Xin chào <strong>{{customerName}}</strong>,</p>
+    <p style="margin: 0 0 20px 0; color: #666; line-height: 1.5;">Đơn hàng của bạn đã được ghi nhận.</p>
+
+    <div style="background-color: #f8f8f8; padding: 15px; border: 1px solid #eee; margin: 20px 0;">
+      <p style="margin: 5px 0; color: #333;"><strong>Mã đơn hàng:</strong> #{{orderId}}</p>
+      <p style="margin: 5px 0; color: #333;"><strong>Ngày đặt:</strong> {{orderDate}}</p>
+      <p style="margin: 5px 0; color: #333;"><strong>Phương thức thanh toán:</strong> {{paymentMethod}}</p>
+    </div>
+
+    <h3 style="font-size: 16px; color: #333; margin: 25px 0 10px 0;">Sản phẩm</h3>
+    <table style="width: 100%; border-collapse: collapse; color: #333; font-size: 14px;">
+      <thead>
+        <tr style="background-color: #f8f8f8;">
+          <th style="text-align: left; padding: 10px; border: 1px solid #ddd;">Sản phẩm</th>
+          <th style="text-align: center; padding: 10px; border: 1px solid #ddd;">SL</th>
+          <th style="text-align: right; padding: 10px; border: 1px solid #ddd;">Đơn giá</th>
+          <th style="text-align: right; padding: 10px; border: 1px solid #ddd;">Thành tiền</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each items}}
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ddd;">{{this.name}}</td>
+          <td style="text-align: center; padding: 10px; border: 1px solid #ddd;">{{this.quantity}}</td>
+          <td style="text-align: right; padding: 10px; border: 1px solid #ddd;">{{this.unitPrice}}</td>
+          <td style="text-align: right; padding: 10px; border: 1px solid #ddd;">{{this.lineTotal}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <div style="margin-top: 20px; text-align: right; color: #333;">
+      <p style="margin: 5px 0;"><strong>Tạm tính:</strong> {{subtotal}}</p>
+      <p style="margin: 5px 0;"><strong>Phí vận chuyển:</strong> {{shippingFee}}</p>
+      <p style="margin: 10px 0; font-size: 16px;"><strong>Tổng cộng:</strong> {{total}}</p>
+    </div>
+
+    <h3 style="font-size: 16px; color: #333; margin: 25px 0 10px 0;">Địa chỉ giao hàng</h3>
+    <div style="color: #666; line-height: 1.5; font-size: 14px;">
+      <p style="margin: 5px 0;"><strong>{{shippingAddress.recipientName}}</strong></p>
+      <p style="margin: 5px 0;">{{shippingAddress.phone}}</p>
+      <p style="margin: 5px 0;">{{shippingAddress.line1}}, {{shippingAddress.ward}}, {{shippingAddress.district}}, {{shippingAddress.city}}</p>
+    </div>
+
+    <p style="margin: 25px 0;">
+      <a href="{{trackingUrl}}" style="display: inline-block; padding: 10px 16px; background-color: #333; color: #fff; text-decoration: none; border-radius: 3px;">Xem đơn hàng</a>
+    </p>
+
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 13px; color: #999;">
+      <p style="margin: 5px 0;">Email từ Your Shop</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,53 +1,63 @@
 # IAM Service
 
-## Quick Start
+Service quản lý đăng ký, đăng nhập, user và reset mật khẩu.
+
+## Chạy bằng Docker
+
+Từ thư mục root project:
 
 ```bash
-npm install
-node setup-iam.js  # Generate secrets + run migrations
-npm start          # Port 3001
+cd D:\IT\Web-Project
+docker-compose up -d --build iam-service
 ```
 
-## API Endpoints
+Xem logs:
 
-**Public:**
-- POST `/register` - Register user
-- POST `/login` - Login (returns JWT)
-- POST `/refresh` - Refresh token
+```bash
+docker-compose logs -f iam-service
+```
 
-**Protected:**
-- GET `/me` - Get user info (Bearer token)
-- GET `/admin/dashboard` - Admin only
+Kiểm tra container:
 
-## Security
+```bash
+docker-compose ps iam-service
+```
 
-- Account lockout: 5 fails = 15 min lock
-- Rate limit: 5 login/15min, 3 register/hour
-- Audit logging
-- JWT: 15 min access, 7 days refresh
+## Chạy server local
 
-## Database
+```bash
+cd D:\IT\Web-Project\backend\apps\iam-service
+npm install
+npm start
+```
 
-Tables: `users`, `audit_logs`, `refresh_tokens`, `outbox_events`
+## Cấu hình cần có
 
-Migrations in `migrations/` folder.
-
-## Config (.env)
+Trong `.env` hoặc `docker-compose.yml`:
 
 ```env
-DB_HOST=localhost
+PORT=3001
+DB_HOST=mysql
 DB_USER=admin
-DB_PASS=***
+DB_PASS=MySqlSecPass987
 DB_NAME=iam
-JWT_SECRET=<32+ chars>
-JWT_REFRESH_SECRET=<32+ chars>
-ALLOWED_ORIGINS=http://localhost:3000
+JWT_SECRET=your_secret_32_chars_min
+JWT_REFRESH_SECRET=your_refresh_secret_32_chars_min
+RABBITMQ_URL=amqp://admin:RabbitMqSecPass321@rabbitmq:5672
+RABBITMQ_EXCHANGE=cnweb.events
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 ```
 
-## Troubleshooting
+## Health check
 
-**JWT secret error:** Run `node setup-iam.js`
+```bash
+curl http://localhost:3001/health
+```
 
-**DB error:** Check MySQL running, create `iam` database
+## Chính
 
-**CORS error:** Add frontend URL to `ALLOWED_ORIGINS`
+- Đăng ký, đăng nhập, refresh token
+- Đổi mật khẩu
+- Quên mật khẩu bằng mã 6 số qua email
+- Publish events qua RabbitMQ cho email-service
+- Endpoint `/users/:id` cho service nội bộ lấy email user

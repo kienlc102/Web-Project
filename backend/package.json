@@ -9,6 +9,7 @@
     "dev:gateway": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only apps/api-gateway/src/main.ts",
     "dev:fulfillment": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only apps/fulfillment-service/src/main.ts",
     "dev:review": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only apps/review-service/src/main.ts",
+    "dev:email": "nodemon apps/email-service/src/server.js",
     "migration:run:fulfillment": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d apps/fulfillment-service/src/database/typeorm.config.ts",
     "migration:run:review": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d apps/review-service/src/database/typeorm.config.ts",
     "migration:revert:fulfillment": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d apps/fulfillment-service/src/database/typeorm.config.ts",

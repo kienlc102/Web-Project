@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import PageShell from '../shared/PageShell';
 import { login } from '../../utils/appApi';
 import { useAuth } from './AuthProvider';
@@ -44,6 +44,11 @@ const LoginPage = () => {
           Mật khẩu
           <input className="ops-input" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required />
         </label>
+        <div style={{ textAlign: 'right', marginTop: '-8px', marginBottom: '12px' }}>
+          <Link to="/forgot-password" style={{ fontSize: '14px', color: '#666', textDecoration: 'none' }}>
+            Quên mật khẩu?
+          </Link>
+        </div>
         <div className="ops-actions">
           <button className="ops-button" disabled={busy}>{busy ? 'Đang xử lý...' : 'Đăng nhập'}</button>
         </div>

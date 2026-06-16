@@ -9,6 +9,8 @@ import CustomerLayout from './layouts/CustomerLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import RoleProfileRedirect from './pages/auth/RoleProfileRedirect';
 import RoleNotificationRedirect from './pages/auth/RoleNotificationRedirect';
 import RoleHomeRedirect from './pages/auth/RoleHomeRedirect';
@@ -64,6 +66,8 @@ export default function App() {
 
             <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
             <Route path="/register" element={<GuestOnly><RegisterPage /></GuestOnly>} />
+            <Route path="/forgot-password" element={<GuestOnly><ForgotPasswordPage /></GuestOnly>} />
+            <Route path="/reset-password" element={<GuestOnly><ResetPasswordPage /></GuestOnly>} />
 
             <Route path="/admin" element={<RequireRole roles={['ADMIN']}><DashboardLayout role="admin" /></RequireRole>}>
               <Route index element={<AdminDashboard />} />
