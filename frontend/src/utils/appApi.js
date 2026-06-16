@@ -98,6 +98,24 @@ async function changeEmail({ newEmail, password }) {
   return parseApiResponse(response, 'Không thể đổi email');
 }
 
+async function forgotPassword(email) {
+  const response = await fetch(`${AUTH_BASE_URL}/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return parseApiResponse(response, 'Không thể gửi mã xác nhận');
+}
+
+async function resetPassword({ email, token, newPassword, confirmPassword }) {
+  const response = await fetch(`${AUTH_BASE_URL}/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, token, newPassword, confirmPassword }),
+  });
+  return parseApiResponse(response, 'Không thể đặt lại mật khẩu');
+}
+
 function logout() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -207,6 +225,7 @@ export {
   cancelOrder,
   changeEmail,
   changePassword,
+  forgotPassword,
   getActiveUserId,
   getOrder,
   getProfile,
@@ -222,6 +241,7 @@ export {
   markAllNotificationsRead,
   markNotificationRead,
   register,
+  resetPassword,
   submitReview,
   updateSellerOrder,
 };

@@ -76,6 +76,21 @@ async function ensureIamSchema() {
     }
 
     await pool.query("UPDATE users SET approval_status = 'ACTIVE' WHERE approval_status IS NULL OR approval_status = ''");
+    
+    // Create password_reset_tokens table
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id VARCHAR(36) PRIMARY KEY,
+            user_id VARCHAR(36) NOT NULL,
+            token VARCHAR(10) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            used BOOLEAN DEFAULT FALSE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_token (token),
+            INDEX idx_user_id (user_id)
+        )
+    `);
 }
 
 async function ensureSeedUsers() {
@@ -116,6 +131,24 @@ app.get('/users', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT id, username, role FROM users ORDER BY username');
         res.status(200).json({ data: rows });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get user by ID (for internal service-to-service calls)
+app.get('/users/:id', async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            'SELECT id, username, email, role, approval_status FROM users WHERE id = ?',
+            [req.params.id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        res.status(200).json({ data: rows[0] });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -814,7 +847,7 @@ app.patch('/change-password', authenticateToken, async (req, res) => {
     }
 
     try {
-        const [users] = await pool.query('SELECT id, username, password_hash FROM users WHERE id = ?', [req.user.userId]);
+        const [users] = await pool.query('SELECT id, username, email, password_hash FROM users WHERE id = ?', [req.user.userId]);
         if (users.length === 0) {
             await logAudit({
                 userId: req.user.userId,
@@ -850,6 +883,21 @@ app.patch('/change-password', authenticateToken, async (req, res) => {
         );
         await pool.query('DELETE FROM refresh_tokens WHERE user_id = ?', [req.user.userId]);
 
+        // Publish password changed event for email notification
+        await pool.query(
+            'INSERT INTO outbox_events (id, event_type, payload) VALUES (?, ?, ?)',
+            [
+                uuidv4(),
+                'PasswordChanged',
+                JSON.stringify({
+                    userId: user.id,
+                    username: user.username,
+                    email: user.email,
+                    changedAt: new Date().toISOString()
+                })
+            ]
+        );
+
         await logAudit({
             userId: req.user.userId,
             eventType: 'AUTH',
@@ -871,6 +919,197 @@ app.patch('/change-password', authenticateToken, async (req, res) => {
             requestData: { error: error.message },
             responseStatus: 500
         });
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================
+// Forgot Password: Request reset token
+// ============================================
+app.post('/forgot-password', async (req, res) => {
+    const { email } = req.body;
+
+    if (!email || !email.includes('@')) {
+        return res.status(400).json({ error: 'Email không hợp lệ' });
+    }
+
+    try {
+        const [users] = await pool.query('SELECT id, username, email FROM users WHERE email = ?', [email]);
+        
+        // Always return success to prevent email enumeration
+        if (users.length === 0) {
+            await logAudit({
+                userId: null,
+                eventType: 'AUTH',
+                eventAction: 'PASSWORD_RESET_REQUESTED_UNKNOWN_EMAIL',
+                ipAddress: getClientIp(req),
+                userAgent: getUserAgent(req),
+                requestData: { email },
+                responseStatus: 200
+            });
+            return res.status(200).json({ message: 'Nếu email tồn tại, mã xác nhận đã được gửi' });
+        }
+
+        const user = users[0];
+        
+        // Generate 6-digit random code
+        const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+        const tokenId = uuidv4();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+        // Delete old tokens for this user
+        await pool.query('DELETE FROM password_reset_tokens WHERE user_id = ?', [user.id]);
+
+        // Save new token
+        await pool.query(
+            'INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)',
+            [tokenId, user.id, resetToken, expiresAt]
+        );
+
+        // Publish event for email notification
+        await pool.query(
+            'INSERT INTO outbox_events (id, event_type, payload) VALUES (?, ?, ?)',
+            [
+                uuidv4(),
+                'PasswordResetRequested',
+                JSON.stringify({
+                    userId: user.id,
+                    username: user.username,
+                    email: user.email,
+                    resetToken: resetToken,
+                    requestedAt: new Date().toISOString()
+                })
+            ]
+        );
+
+        await logAudit({
+            userId: user.id,
+            eventType: 'AUTH',
+            eventAction: 'PASSWORD_RESET_REQUESTED',
+            ipAddress: getClientIp(req),
+            userAgent: getUserAgent(req),
+            requestData: { email },
+            responseStatus: 200
+        });
+
+        res.status(200).json({ message: 'Mã xác nhận đã được gửi đến email của bạn' });
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================
+// Reset Password: Verify token and set new password
+// ============================================
+app.post('/reset-password', async (req, res) => {
+    const { email, token, newPassword, confirmPassword } = req.body;
+
+    const fieldsCheck = validateRequiredFields(req.body, ['email', 'token', 'newPassword', 'confirmPassword']);
+    if (!fieldsCheck.valid) {
+        return res.status(400).json({ error: fieldsCheck.error });
+    }
+
+    const passwordCheck = validatePassword(newPassword);
+    if (!passwordCheck.valid) {
+        return res.status(400).json({ error: passwordCheck.error });
+    }
+
+    if (newPassword !== confirmPassword) {
+        return res.status(400).json({ error: 'Xác nhận mật khẩu không khớp' });
+    }
+
+    try {
+        const [users] = await pool.query('SELECT id, username, email FROM users WHERE email = ?', [email]);
+        
+        if (users.length === 0) {
+            await logAudit({
+                userId: null,
+                eventType: 'AUTH',
+                eventAction: 'PASSWORD_RESET_FAILED',
+                ipAddress: getClientIp(req),
+                userAgent: getUserAgent(req),
+                requestData: { email, reason: 'User not found' },
+                responseStatus: 404
+            });
+            return res.status(404).json({ error: 'Email không tồn tại' });
+        }
+
+        const user = users[0];
+
+        // Verify token
+        const [tokens] = await pool.query(
+            'SELECT id, expires_at, used FROM password_reset_tokens WHERE user_id = ? AND token = ?',
+            [user.id, token]
+        );
+
+        if (tokens.length === 0) {
+            await logAudit({
+                userId: user.id,
+                eventType: 'AUTH',
+                eventAction: 'PASSWORD_RESET_FAILED',
+                ipAddress: getClientIp(req),
+                userAgent: getUserAgent(req),
+                requestData: { email, reason: 'Invalid token' },
+                responseStatus: 400
+            });
+            return res.status(400).json({ error: 'Mã xác nhận không hợp lệ' });
+        }
+
+        const resetToken = tokens[0];
+
+        if (resetToken.used) {
+            await logAudit({
+                userId: user.id,
+                eventType: 'AUTH',
+                eventAction: 'PASSWORD_RESET_FAILED',
+                ipAddress: getClientIp(req),
+                userAgent: getUserAgent(req),
+                requestData: { email, reason: 'Token already used' },
+                responseStatus: 400
+            });
+            return res.status(400).json({ error: 'Mã xác nhận đã được sử dụng' });
+        }
+
+        if (new Date() > new Date(resetToken.expires_at)) {
+            await logAudit({
+                userId: user.id,
+                eventType: 'AUTH',
+                eventAction: 'PASSWORD_RESET_FAILED',
+                ipAddress: getClientIp(req),
+                userAgent: getUserAgent(req),
+                requestData: { email, reason: 'Token expired' },
+                responseStatus: 400
+            });
+            return res.status(400).json({ error: 'Mã xác nhận đã hết hạn' });
+        }
+
+        // Update password
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await pool.query(
+            'UPDATE users SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL WHERE id = ?',
+            [passwordHash, user.id]
+        );
+
+        // Mark token as used
+        await pool.query('UPDATE password_reset_tokens SET used = TRUE WHERE id = ?', [resetToken.id]);
+
+        // Delete all refresh tokens
+        await pool.query('DELETE FROM refresh_tokens WHERE user_id = ?', [user.id]);
+
+        await logAudit({
+            userId: user.id,
+            eventType: 'AUTH',
+            eventAction: 'PASSWORD_RESET_SUCCESS',
+            ipAddress: getClientIp(req),
+            userAgent: getUserAgent(req),
+            requestData: { email },
+            responseStatus: 200
+        });
+
+        res.status(200).json({ message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.' });
+    } catch (error) {
+        console.error('Reset password error:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -1247,8 +1486,8 @@ async function startOutboxProcessor() {
         const conn = await amqp.connect(rabbitUrl);
         const channel = await conn.createChannel();
         
-        const exchangeName = 'microservices_events';
-        await channel.assertExchange(exchangeName, 'fanout', { durable: true });
+        const exchangeName = process.env.RABBITMQ_EXCHANGE || 'cnweb.events';
+        await channel.assertExchange(exchangeName, 'topic', { durable: true });
 
         console.log('✅ Bưu tá Outbox đã kết nối với RabbitMQ');
 
@@ -1259,8 +1498,26 @@ async function startOutboxProcessor() {
                 
                 for (const event of events) {
                     // Bắn sự kiện lên RabbitMQ
-                    const message = JSON.stringify({ id: event.id, type: event.event_type, payload: event.payload });
-                    channel.publish(exchangeName, '', Buffer.from(message));
+                    const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+                    const message = {
+                        eventId: event.id,
+                        eventType: event.event_type,
+                        payload: payload,
+                        timestamp: new Date().toISOString()
+                    };
+                    
+                    // Routing key format: service.entity.action (e.g., iam.user.created)
+                    let routingKey;
+                    if (event.event_type === 'UserCreated') {
+                        routingKey = 'iam.user.created';
+                    } else if (event.event_type === 'PasswordChanged') {
+                        routingKey = 'iam.password.changed';
+                    } else if (event.event_type === 'PasswordResetRequested') {
+                        routingKey = 'iam.password.reset-requested';
+                    } else {
+                        routingKey = 'iam.user.updated';
+                    }
+                    channel.publish(exchangeName, routingKey, Buffer.from(JSON.stringify(message)));
                     
                     // Gửi thành công thì xóa khỏi Outbox
                     await pool.query('DELETE FROM outbox_events WHERE id = ?', [event.id]);

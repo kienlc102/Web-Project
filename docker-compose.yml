@@ -218,6 +218,29 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  email-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: npm --workspace email-service start
+    environment:
+      PORT: 3004
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@shop.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Shop System}
+      RABBITMQ_URL: amqp://admin:RabbitMqSecPass321@rabbitmq:5672
+      RABBITMQ_EXCHANGE: cnweb.events
+      FRONTEND_URL: http://localhost:8080
+      IAM_BASE_URL: http://iam-service:3001
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   adminer:
     image: adminer:latest
     restart: unless-stopped
