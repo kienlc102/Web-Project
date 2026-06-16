@@ -307,14 +307,16 @@ app.post('/register', registerLimiter, async (req, res) => {
         const userId = uuidv4();
 
         // 2. Lưu user vào DB
+        const approvalStatus = requestedRole === 'CUSTOMER' ? 'ACTIVE' : 'PENDING';
         await conn.query(
             'INSERT INTO users (id, username, email, password_hash, role, approval_status) VALUES (?, ?, ?, ?, ?, ?)', 
-            [userId, sanitizedUsername, emailCheck.sanitized, hashedPassword, requestedRole, 'PENDING']
+            [userId, sanitizedUsername, emailCheck.sanitized, hashedPassword, requestedRole, approvalStatus]
         );
 
         // 3. Tạo sự kiện và lưu vào bảng Outbox
         const eventId = uuidv4();
-        const payload = JSON.stringify({ userId, username: sanitizedUsername, email: emailCheck.sanitized, role: requestedRole, approvalStatus: 'PENDING', action: 'UserRegisteredPendingApproval' });
+        const eventAction = approvalStatus === 'ACTIVE' ? 'UserRegistered' : 'UserRegisteredPendingApproval';
+        const payload = JSON.stringify({ userId, username: sanitizedUsername, email: emailCheck.sanitized, role: requestedRole, approvalStatus, action: eventAction });
         
         await conn.query(
             'INSERT INTO outbox_events (id, event_type, payload) VALUES (?, ?, ?)',
@@ -330,11 +332,14 @@ app.post('/register', registerLimiter, async (req, res) => {
             eventAction: 'REGISTER_SUCCESS',
             ipAddress: getClientIp(req),
             userAgent: getUserAgent(req),
-            requestData: { username: sanitizedUsername, role: requestedRole, approvalStatus: 'PENDING' },
+            requestData: { username: sanitizedUsername, role: requestedRole, approvalStatus },
             responseStatus: 201
         });
         
-        res.status(201).json({ message: 'Đăng ký thành công. Tài khoản đang chờ admin duyệt.', userId, role: requestedRole, approvalStatus: 'PENDING' });
+        const successMessage = approvalStatus === 'ACTIVE' 
+            ? 'Đăng ký thành công. Bạn có thể đăng nhập ngay.'
+            : 'Đăng ký thành công. Tài khoản đang chờ admin duyệt.';
+        res.status(201).json({ message: successMessage, userId, role: requestedRole, approvalStatus });
     } catch (error) {
         await conn.rollback(); // Có lỗi xảy ra, hủy bỏ mọi thay đổi
         await logAudit({
