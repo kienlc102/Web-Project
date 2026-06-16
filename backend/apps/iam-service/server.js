@@ -309,25 +309,15 @@ app.post('/register', registerLimiter, async (req, res) => {
         // 2. Lưu user vào DB
         const approvalStatus = requestedRole === 'CUSTOMER' ? 'ACTIVE' : 'PENDING';
         await conn.query(
-<<<<<<< Updated upstream
             'INSERT INTO users (id, username, email, password_hash, role, approval_status) VALUES (?, ?, ?, ?, ?, ?)', 
             [userId, sanitizedUsername, emailCheck.sanitized, hashedPassword, requestedRole, approvalStatus]
-=======
-            'INSERT INTO users (id, username, email, password_hash, role, approval_status) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, sanitizedUsername, emailCheck.sanitized, hashedPassword, requestedRole, 'PENDING']
->>>>>>> Stashed changes
         );
 
         // 3. Tạo sự kiện và lưu vào bảng Outbox
         const eventId = uuidv4();
-<<<<<<< Updated upstream
         const eventAction = approvalStatus === 'ACTIVE' ? 'UserRegistered' : 'UserRegisteredPendingApproval';
         const payload = JSON.stringify({ userId, username: sanitizedUsername, email: emailCheck.sanitized, role: requestedRole, approvalStatus, action: eventAction });
         
-=======
-        const payload = JSON.stringify({ userId, username: sanitizedUsername, email: emailCheck.sanitized, role: requestedRole, approvalStatus: 'PENDING', action: 'UserRegisteredPendingApproval' });
-
->>>>>>> Stashed changes
         await conn.query(
             'INSERT INTO outbox_events (id, event_type, payload) VALUES (?, ?, ?)',
             [eventId, 'UserCreated', payload]
@@ -345,16 +335,11 @@ app.post('/register', registerLimiter, async (req, res) => {
             requestData: { username: sanitizedUsername, role: requestedRole, approvalStatus },
             responseStatus: 201
         });
-<<<<<<< Updated upstream
         
         const successMessage = approvalStatus === 'ACTIVE' 
             ? 'Đăng ký thành công. Bạn có thể đăng nhập ngay.'
             : 'Đăng ký thành công. Tài khoản đang chờ admin duyệt.';
         res.status(201).json({ message: successMessage, userId, role: requestedRole, approvalStatus });
-=======
-
-        res.status(201).json({ message: 'Đăng ký thành công. Tài khoản đang chờ admin duyệt.', userId, role: requestedRole, approvalStatus: 'PENDING' });
->>>>>>> Stashed changes
     } catch (error) {
         await conn.rollback(); // Có lỗi xảy ra, hủy bỏ mọi thay đổi
         await logAudit({

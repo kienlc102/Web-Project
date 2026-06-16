@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 const handlebars = require('handlebars');
 const fs = require('fs').promises;
 const path = require('path');
@@ -10,7 +11,20 @@ handlebars.registerHelper('ifEquals', function(arg1, arg2, options) {
 
 class EmailService {
   constructor() {
-    this.transporter = nodemailer.createTransport(config.smtp);
+    this.emailProvider = config.emailProvider;
+    
+    if (this.emailProvider === 'sendgrid') {
+      if (!config.sendgrid.apiKey) {
+        console.warn('⚠️  SendGrid API Key not configured. Email sending will fail.');
+      } else {
+        sgMail.setApiKey(config.sendgrid.apiKey);
+        console.log('✅ SendGrid API configured');
+      }
+    } else {
+      this.transporter = nodemailer.createTransport(config.smtp);
+      console.log('✅ SMTP transporter configured');
+    }
+    
     this.templates = {};
   }
 
@@ -35,21 +49,52 @@ class EmailService {
    */
   async sendEmail(to, subject, html, text = null) {
     try {
-      const mailOptions = {
-        from: `"${config.email.fromName}" <${config.email.from}>`,
-        to,
-        subject,
-        html,
-        text: text || html.replace(/<[^>]*>/g, '') // Strip HTML for text version
-      };
-
-      const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Email sent to ${to}: ${info.messageId}`);
-      return { success: true, messageId: info.messageId };
+      if (this.emailProvider === 'sendgrid') {
+        return await this.sendEmailViaSendGrid(to, subject, html, text);
+      } else {
+        return await this.sendEmailViaSMTP(to, subject, html, text);
+      }
     } catch (error) {
       console.error(`❌ Failed to send email to ${to}:`, error.message);
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Gửi email qua SMTP (Gmail, etc.)
+   */
+  async sendEmailViaSMTP(to, subject, html, text = null) {
+    const mailOptions = {
+      from: `"${config.email.fromName}" <${config.email.from}>`,
+      to,
+      subject,
+      html,
+      text: text || html.replace(/<[^>]*>/g, '')
+    };
+
+    const info = await this.transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent via SMTP to ${to}: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  }
+
+  /**
+   * Gửi email qua SendGrid API
+   */
+  async sendEmailViaSendGrid(to, subject, html, text = null) {
+    const msg = {
+      to,
+      from: {
+        email: config.email.from,
+        name: config.email.fromName
+      },
+      subject,
+      html,
+      text: text || html.replace(/<[^>]*>/g, '')
+    };
+
+    const response = await sgMail.send(msg);
+    console.log(`✅ Email sent via SendGrid to ${to}`);
+    return { success: true, messageId: response[0].headers['x-message-id'] };
   }
 
   /**
@@ -216,11 +261,19 @@ class EmailService {
    */
   async testConnection() {
     try {
-      await this.transporter.verify();
-      console.log('✅ SMTP connection verified');
-      return true;
+      if (this.emailProvider === 'sendgrid') {
+        if (!config.sendgrid.apiKey) {
+          throw new Error('SendGrid API Key not configured');
+        }
+        console.log('✅ SendGrid API Key configured');
+        return true;
+      } else {
+        await this.transporter.verify();
+        console.log('✅ SMTP connection verified');
+        return true;
+      }
     } catch (error) {
-      console.error('❌ SMTP connection failed:', error.message);
+      console.error(`❌ ${this.emailProvider.toUpperCase()} connection failed:`, error.message);
       return false;
     }
   }

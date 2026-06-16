@@ -3,6 +3,8 @@ require('dotenv').config();
 module.exports = {
   port: process.env.PORT || 3004,
   
+  emailProvider: process.env.EMAIL_PROVIDER || 'smtp',
+
   smtp: {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT) || 587,
@@ -11,6 +13,10 @@ module.exports = {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     }
+  },
+
+  sendgrid: {
+    apiKey: process.env.SENDGRID_API_KEY
   },
   
   email: {

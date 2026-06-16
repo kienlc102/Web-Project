@@ -226,11 +226,13 @@ services:
     command: npm --workspace email-service start
     environment:
       PORT: 3004
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-sendgrid}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY}
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASS: ${SMTP_PASS}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@shop.com}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Shop System}
       RABBITMQ_URL: amqp://admin:RabbitMqSecPass321@rabbitmq:5672
