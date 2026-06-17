@@ -443,36 +443,83 @@ app.post('/login', async (req, res) => {
             });
         }
 
-        if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
-            await logAudit({
-                userId: user.id,
-                eventType: 'AUTH',
-                eventAction: 'LOGIN_BLOCKED_LOCKED_ACCOUNT',
-                ipAddress: getClientIp(req),
-                userAgent: getUserAgent(req),
-                requestData: { username: sanitizedUsername, lockedUntil: user.locked_until },
-                responseStatus: 423
-            });
+        if (user.locked_until) {
+            const lockExpiry = new Date(user.locked_until);
 
-            return res.status(423).json({
-                error: 'Tài khoản đang bị khóa. Vui lòng thử lại sau.'
-            });
+            if (lockExpiry.getTime() > Date.now()) {
+                const remainingMinutes = Math.ceil((lockExpiry.getTime() - Date.now()) / 60000);
+
+                await logAudit({
+                    userId: user.id,
+                    eventType: 'AUTH',
+                    eventAction: 'LOGIN_BLOCKED_LOCKED_ACCOUNT',
+                    ipAddress: getClientIp(req),
+                    userAgent: getUserAgent(req),
+                    requestData: { username: sanitizedUsername, lockedUntil: user.locked_until, remainingMinutes },
+                    responseStatus: 423
+                });
+
+                return res.status(423).json({
+                    error: `Tài khoản đang bị khóa. Vui lòng thử lại sau ${remainingMinutes} phút.`,
+                    lockedUntil: user.locked_until
+                });
+            }
+
+            await pool.query(
+                'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?',
+                [user.id]
+            );
+            user.failed_login_attempts = 0;
         }
 
         // So sánh mật khẩu
         const isValidPassword = await bcrypt.compare(password, user.password_hash);
         if (!isValidPassword) {
+            const maxAttempts = 5;
+            const lockMinutes = 15;
+            const newFailedAttempts = (user.failed_login_attempts || 0) + 1;
+
+            if (newFailedAttempts >= maxAttempts) {
+                const lockUntil = new Date(Date.now() + lockMinutes * 60 * 1000);
+
+                await pool.query(
+                    'UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?',
+                    [newFailedAttempts, lockUntil, user.id]
+                );
+
+                await logAudit({
+                    userId: user.id,
+                    eventType: 'AUTH',
+                    eventAction: 'ACCOUNT_LOCKED',
+                    ipAddress: getClientIp(req),
+                    userAgent: getUserAgent(req),
+                    requestData: { username: sanitizedUsername, attempts: newFailedAttempts },
+                    responseStatus: 423
+                });
+
+                return res.status(423).json({
+                    error: `Tài khoản đã bị khóa do nhập sai mật khẩu ${maxAttempts} lần. Vui lòng thử lại sau ${lockMinutes} phút.`,
+                    lockedUntil: lockUntil
+                });
+            }
+
+            await pool.query(
+                'UPDATE users SET failed_login_attempts = ? WHERE id = ?',
+                [newFailedAttempts, user.id]
+            );
+
             await logAudit({
                 userId: user.id,
                 eventType: 'AUTH',
                 eventAction: 'LOGIN_FAILED',
                 ipAddress: getClientIp(req),
                 userAgent: getUserAgent(req),
-                requestData: { username, reason: 'Wrong password' },
+                requestData: { username: sanitizedUsername, attempts: newFailedAttempts, reason: 'Wrong password' },
                 responseStatus: 401
             });
+
             return res.status(401).json({
-                error: 'Sai tài khoản hoặc mật khẩu.'
+                error: `Sai tài khoản hoặc mật khẩu. Còn ${maxAttempts - newFailedAttempts} lần thử.`
             });
         }
 
